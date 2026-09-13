@@ -6,6 +6,25 @@ a gyroscopic remote.
 
 Named for the variable star in Cetus — and because *mira* means "look".
 
+## Why "Mira"
+
+**Mira** (Omicron Ceti) is a star in the constellation Cetus, the Whale. It was
+the first star found to change its brightness on a regular cycle: David
+Fabricius noticed it in 1596, and Johannes Hevelius later named it *Mira* —
+Latin for "wonderful" or "astonishing" — because it kept fading from sight and
+coming back. Over about 332 days it swells from invisible to one of the
+brighter stars in the sky, then dims again.
+
+That is a fair description of a TV box: dark most of the day, then lighting up
+the room in the evening.
+
+The second meaning is the plainer one. In Spanish and Italian, *mira* means
+"look" — which is the whole job of the thing: you sit down, point the remote,
+and look.
+
+The star theme carries through the project: releases are named after variable
+stars, starting with 0.1.0 **Algol**, and the launcher's logo is a star.
+
 ## What it is
 
 Raspberry Pi OS is a desktop distro pretending to be an appliance: slow to boot,
