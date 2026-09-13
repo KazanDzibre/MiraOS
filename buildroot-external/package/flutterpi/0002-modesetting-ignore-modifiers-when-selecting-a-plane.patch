@@ -1,0 +1,40 @@
+Ignore buffer modifiers when picking a plane on drivers without them
+
+On a driver that does not advertise DRM_CAP_ADDFB2_MODIFIERS (virtio-gpu,
+so any QEMU guest) no plane advertises modifier support either, so plane
+allocation fails for every frame with "Could not find a suitable unused
+DRM plane".
+
+The framebuffer is already added without modifiers there, so match the
+layer on format alone.
+
+Signed-off-by: Mira <noreply@anthropic.com>
+
+--- a/src/modesetting.c
++++ b/src/modesetting.c
+@@ -2435,6 +2435,25 @@
+     ASSERT_NOT_NULL(release_callback);
+     ASSERT_EQUALS_MSG(deferred_release_callback, NULL, "deferred release callbacks are not supported right now.");
+ 
++    /*
++     * A driver that cannot do DRM_MODE_FB_MODIFIERS also does not advertise
++     * per-plane modifier support, so insisting on a modifier match here finds
++     * no plane at all and every frame fails with "Could not find a suitable
++     * unused DRM plane". virtio-gpu - i.e. any QEMU guest - is exactly this
++     * case.
++     *
++     * The framebuffer is already created without modifiers on such a device
++     * (see drmdev_add_fb_multiplanar_locked), so drop the modifier here too and
++     * let the layer be matched on format alone.
++     */
++    struct kms_fb_layer layer_without_modifier;
++    if (layer->has_modifier && !drmdev_supports_fb_modifiers(builder->drmdev)) {
++        layer_without_modifier = *layer;
++        layer_without_modifier.has_modifier = false;
++        layer_without_modifier.modifier = 0;
++        layer = &layer_without_modifier;
++    }
++
+     if (builder->use_legacy && builder->supports_atomic && builder->n_layers > 1) {
+         // if we already have a first layer and we should use legacy modesetting even though the kernel driver
+         // supports atomic modesetting, return EINVAL.

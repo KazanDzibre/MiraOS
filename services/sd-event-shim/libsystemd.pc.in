@@ -1,0 +1,10 @@
+prefix=@PREFIX@
+libdir=@LIBDIR@
+includedir=@INCDIR@
+
+Name: libsystemd
+Description: Mira's sd-event subset - NOT systemd. Provides sd-event only.
+URL: https://github.com/
+Version: 257
+Libs: -L${libdir} -lsystemd
+Cflags: -I${includedir}

@@ -1,0 +1,22 @@
+#!/bin/sh
+#
+# Give the sound card a usable mixer at boot.
+#
+# ALSA drivers start with their mixer muted and at zero, and a read-only
+# appliance has no saved mixer state to restore - so without this, playback
+# runs perfectly and is silent, which looks like a player bug and is not one.
+# Found in the VM on 2026-09-13: PipeWire on the host received QEMU's stream,
+# and it was pure silence. Same trap on the Pi's HDMI audio.
+
+case "$1" in
+start)
+	command -v alsactl >/dev/null 2>&1 || exit 0
+	# alsactl init applies the driver's sane defaults, including unmuting.
+	alsactl init >/dev/null 2>&1
+	# Belt and braces for codecs whose init profile leaves a control muted.
+	for control in Master PCM Front Speaker Headphone HDMI; do
+		amixer -q sset "$control" 90% unmute >/dev/null 2>&1
+	done
+	;;
+esac
+exit 0

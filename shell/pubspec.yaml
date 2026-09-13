@@ -1,0 +1,39 @@
+name: mira_shell
+description: Mira Shell - the launcher for Mira, rendered by flutter-pi to DRM/KMS.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ^3.13.0
+
+# Kept to a minimum: this app ships inside a distro image, so every package is
+# another thing that must resolve identically at build time. dart:io covers the
+# HTTP we need. The two below are the exception, because playback cannot be
+# written without them: flutter-pi implements video_player's platform
+# interface over GStreamer. Only lib/player/ may import either of them.
+dependencies:
+  flutter:
+    sdk: flutter
+  video_player: ^2.14.0
+  flutterpi_gstreamer_video_player: ^0.2.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: false
+
+  # A Buildroot rootfs has no fonts at all. These are not a style choice we can
+  # fall back from - without them there is nothing to render text with.
+  # Archivo is a variable font: one file covers every weight, which is both
+  # smaller in the image and exact. Weights are selected with FontVariation in
+  # MiraType, not with a `weight:` line here - a pubspec weight cannot pick an
+  # instance out of a variable font.
+  fonts:
+    - family: Archivo
+      fonts:
+        - asset: assets/fonts/Archivo-Variable.ttf
+    - family: ArchivoBlack
+      fonts:
+        - asset: assets/fonts/ArchivoBlack-Regular.ttf

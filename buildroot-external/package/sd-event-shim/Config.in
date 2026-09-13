@@ -1,0 +1,17 @@
+config BR2_PACKAGE_SD_EVENT_SHIM
+	bool "sd-event-shim"
+	depends on BR2_TOOLCHAIN_HAS_THREADS
+	help
+	  Mira's own implementation of the sd-event subset that
+	  flutter-pi needs, installed as libsystemd.
+
+	  flutter-pi requires libsystemd, but Buildroot only builds
+	  systemd when systemd is also init - and Mira is a BusyBox-init
+	  appliance that boots in two seconds. flutter-pi uses sd-event
+	  in 103 places and sd-bus in none, so Mira supplies the event
+	  loop rather than adopting systemd or carrying a large patch.
+
+	  This is not systemd and provides nothing but sd-event.
+
+comment "sd-event-shim needs a toolchain w/ threads"
+	depends on !BR2_TOOLCHAIN_HAS_THREADS

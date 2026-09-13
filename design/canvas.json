@@ -1,0 +1,204 @@
+{
+  "artboards": [
+    {
+      "file": "Main.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 1920,
+      "h": 1080,
+      "page": "page-1",
+      "title": "Home"
+    },
+    {
+      "file": "Library.dc.html",
+      "x": 2040,
+      "y": 0,
+      "w": 1920,
+      "h": 1080,
+      "page": "page-1",
+      "title": "Library"
+    },
+    {
+      "file": "Detail.dc.html",
+      "x": 4080,
+      "y": 0,
+      "w": 1920,
+      "h": 1080,
+      "page": "page-1",
+      "title": "Item detail"
+    },
+    {
+      "file": "Player.dc.html",
+      "x": 0,
+      "y": 1320,
+      "w": 1920,
+      "h": 1080,
+      "page": "page-1",
+      "title": "Player overlay"
+    },
+    {
+      "file": "FirstRun.dc.html",
+      "x": 2040,
+      "y": 1320,
+      "w": 1920,
+      "h": 1080,
+      "page": "page-1",
+      "title": "First run - NetBird"
+    },
+    {
+      "file": "Focus.dc.html",
+      "x": 4080,
+      "y": 1320,
+      "w": 1920,
+      "h": 1080,
+      "page": "page-1",
+      "title": "Focus model (interactive)",
+      "is_interactive": true
+    },
+    {
+      "file": "StateNetbird.dc.html",
+      "x": 0,
+      "y": 2640,
+      "w": 1920,
+      "h": 1080,
+      "page": "page-1",
+      "title": "NetBird down"
+    },
+    {
+      "file": "StateServer.dc.html",
+      "x": 2040,
+      "y": 2640,
+      "w": 1920,
+      "h": 1080,
+      "page": "page-1",
+      "title": "Server unreachable"
+    },
+    {
+      "file": "StateEmpty.dc.html",
+      "x": 4080,
+      "y": 2640,
+      "w": 1920,
+      "h": 1080,
+      "page": "page-1",
+      "title": "Empty library"
+    },
+    {
+      "file": "Observatory.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 1920,
+      "h": 1080,
+      "page": "page-2",
+      "title": "Direction B - Observatory"
+    },
+    {
+      "file": "Appliance.dc.html",
+      "x": 2040,
+      "y": 0,
+      "w": 1920,
+      "h": 1080,
+      "page": "page-2",
+      "title": "Direction C - Appliance"
+    },
+    {
+      "file": "Overseerr.dc.html",
+      "x": 0,
+      "y": 3960,
+      "w": 1920,
+      "h": 1080,
+      "page": "page-1",
+      "title": "Overseerr - Discover"
+    },
+    {
+      "file": "OverseerrRequest.dc.html",
+      "x": 2040,
+      "y": 3960,
+      "w": 1920,
+      "h": 1080,
+      "page": "page-1",
+      "title": "Overseerr - Request sent"
+    },
+    {
+      "file": "Genres.dc.html",
+      "x": 0,
+      "y": 5400,
+      "w": 1920,
+      "h": 1080,
+      "page": "page-1",
+      "title": "Genres"
+    },
+    {
+      "file": "Tracks.dc.html",
+      "x": 2040,
+      "y": 5400,
+      "w": 1920,
+      "h": 1080,
+      "page": "page-1",
+      "title": "Subtitles & audio"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "system",
+      "x": 0,
+      "y": -300,
+      "w": 980,
+      "page": "page-1",
+      "text": "MIRA SHELL - CINEMA\nArchivo / Archivo Black. Gold #e8b04b means focus and nothing else. Safe area is inset 72px vertical, 80px horizontal for overscan. Controls are 68px tall minimum.\n\nD-PAD FIRST. Every screen is laid out so up/down/left/right reach everything, like any TV app - the gyro cursor is an option that can be switched off without making anything unreachable. When it is on it moves focus rather than drawing a competing hover state. Focus ring is 4px gold plus a 6px halo, identical whichever input put it there. The interactive artboard on the right of row 2 is the working version - try the cursor toggle on it."
+    },
+    {
+      "id": "states",
+      "x": 0,
+      "y": 2340,
+      "w": 980,
+      "page": "page-1",
+      "text": "FAILURE STATES\nEach one is a designed screen, not an error. Plain-language headline, a status card naming which hop actually failed, and one small technical line at the bottom for debugging from the couch. No stack traces, no raw error strings anywhere."
+    },
+    {
+      "id": "note-b",
+      "x": 0,
+      "y": -260,
+      "w": 900,
+      "page": "page-2",
+      "text": "DIRECTION B - OBSERVATORY\nEditorial and structural - a left nav rail, a strict grid, star-chart motif drawn from the name. Focus is a telescope reticle: corner brackets plus a hairline ring.\n\nTradeoff: the strongest identity of the three, but the most chrome to build and maintain, and a serif display face at three metres is a real legibility risk."
+    },
+    {
+      "id": "note-c",
+      "x": 2040,
+      "y": -260,
+      "w": 900,
+      "page": "page-2",
+      "text": "DIRECTION C - APPLIANCE\nFlat blocks, huge type, no blur and no gradients. Focus inverts the whole card to solid orange. Looks like a well-made appliance rather than a media app.\n\nTradeoff: cheapest to render by a wide margin and unmissable from the couch - but the plainest, and it gives poster artwork much less room."
+    },
+    {
+      "id": "overseerr",
+      "x": 0,
+      "y": 3660,
+      "w": 980,
+      "page": "page-1",
+      "text": "OVERSEERR\nBrowse what you do not have yet and request it. Poster badges say where each title already stands - in your library, or already requested and pending - so you never request the same thing twice.\n\nThe bar along the bottom names what OK and Back do for whatever is focused. That is the d-pad-first pattern: the remote's buttons are labelled on screen rather than guessed at."
+    },
+    {
+      "id": "tracks",
+      "x": 0,
+      "y": 5100,
+      "w": 980,
+      "page": "page-1",
+      "text": "GENRES AND SUBTITLES - REAL DATA\nGenres are the 17 your library actually has, with real counts. Jellyfin's /Genres endpoint returns nothing on this server, so the shell counts them from the films themselves.\n\nThe picker uses The Fellowship of the Ring's real tracks and real OpenSubtitles results. Search and download go through the Open Subtitles plugin already running on your Jellyfin, so no OpenSubtitles key lives on the TV, and a subtitle picked once is saved for every device. DVD bitmap tracks cannot be drawn by the shell - the server burns them into the picture, which means a transcode, and the row says so. Selection is shown in white; gold stays reserved for focus."
+    }
+  ],
+  "launch": {
+    "view": "canvas",
+    "page": "page-1"
+  },
+  "pages": [
+    {
+      "id": "page-1",
+      "name": "Screens"
+    },
+    {
+      "id": "page-2",
+      "name": "Other directions"
+    }
+  ]
+}

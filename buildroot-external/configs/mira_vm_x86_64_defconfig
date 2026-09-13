@@ -1,0 +1,117 @@
+# Mira - VM target (x86_64).
+#
+# Produces a hybrid BIOS+EFI bootable ISO that runs entirely from RAM, for
+# checking the look and feel of the whole OS on a local VM. The real appliance
+# target is mira_rpi4_defconfig; everything above the kernel is shared.
+
+# --- Architecture ---
+BR2_x86_64=y
+
+# --- Toolchain ---
+# Headers must be pinned first: glibc requires >= 3.2, and without glibc
+# there is no BR2_USE_WCHAR, which GRUB2 depends on.
+BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_6_18=y
+# glibc, not uclibc: the Flutter engine links against glibc.
+BR2_TOOLCHAIN_BUILDROOT_GLIBC=y
+BR2_TOOLCHAIN_BUILDROOT_CXX=y
+
+# --- System ---
+BR2_TARGET_GENERIC_HOSTNAME="mira"
+BR2_TARGET_GENERIC_ISSUE="Mira"
+BR2_SYSTEM_DHCP="eth0"
+BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_MIRA_PATH)/board/mira/common/rootfs-overlay"
+BR2_ROOTFS_POST_BUILD_SCRIPT="$(BR2_EXTERNAL_MIRA_PATH)/board/mira/common/post-build.sh"
+BR2_ROOTFS_POST_IMAGE_SCRIPT="$(BR2_EXTERNAL_MIRA_PATH)/board/mira/vm/post-image.sh"
+
+# --- Kernel ---
+BR2_LINUX_KERNEL=y
+BR2_LINUX_KERNEL_CUSTOM_VERSION=y
+BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE="6.18.7"
+BR2_LINUX_KERNEL_USE_CUSTOM_CONFIG=y
+BR2_LINUX_KERNEL_CUSTOM_CONFIG_FILE="$(BR2_EXTERNAL_MIRA_PATH)/board/mira/vm/linux.config"
+BR2_LINUX_KERNEL_NEEDS_HOST_LIBELF=y
+
+# --- Bootloader: one ISO that boots both legacy BIOS and UEFI VMs ---
+BR2_TARGET_GRUB2=y
+BR2_TARGET_GRUB2_I386_PC=y
+BR2_TARGET_GRUB2_X86_64_EFI=y
+BR2_TARGET_GRUB2_BOOT_PARTITION="cd"
+BR2_TARGET_GRUB2_BUILTIN_MODULES_PC="boot linux ext2 fat squash4 part_msdos part_gpt normal biosdisk iso9660 all_video"
+BR2_TARGET_GRUB2_BUILTIN_MODULES_EFI="boot linux ext2 fat squash4 part_msdos part_gpt normal efi_gop iso9660 all_video"
+BR2_TARGET_GRUB2_BUILTIN_CONFIG_EFI="$(BR2_EXTERNAL_MIRA_PATH)/board/mira/vm/grub-efi-embedded.cfg"
+
+# --- Image: rootfs travels as an initrd, so the live system is read/write ---
+BR2_TARGET_ROOTFS_CPIO=y
+BR2_TARGET_ROOTFS_CPIO_GZIP=y
+BR2_TARGET_ROOTFS_ISO9660=y
+BR2_TARGET_ROOTFS_ISO9660_GRUB2=y
+BR2_TARGET_ROOTFS_ISO9660_INITRD=y
+BR2_TARGET_ROOTFS_ISO9660_BOOT_MENU="$(BR2_EXTERNAL_MIRA_PATH)/board/mira/vm/grub.cfg"
+# BR2_TARGET_ROOTFS_TAR is not set
+
+# --- Graphics: flutter-pi renders straight to DRM/KMS, so it needs GBM and
+# GLES but no X11 or Wayland. virgl is what makes that work under QEMU. ---
+BR2_PACKAGE_MESA3D=y
+BR2_PACKAGE_MESA3D_GALLIUM_DRIVER_VIRGL=y
+# llvmpipe so the VM works on any QEMU. virgl is the fast path, but it needs a
+# virtio-gpu device the host QEMU may not ship (on Arch the display models are
+# separate packages), and QEMU's default stdvga has no gallium driver at all -
+# without a software rasteriser flutter-pi cannot create a GBM device and exits.
+BR2_PACKAGE_MESA3D_GALLIUM_DRIVER_LLVMPIPE=y
+BR2_PACKAGE_MESA3D_LLVM=y
+BR2_PACKAGE_MESA3D_OPENGL_EGL=y
+BR2_PACKAGE_MESA3D_OPENGL_ES=y
+BR2_PACKAGE_MESA3D_GBM=y
+BR2_PACKAGE_LIBDRM=y
+
+# --- Input: libinput enumerates devices through udev, which BusyBox mdev does
+# not provide, so /dev management moves to eudev. ---
+BR2_ROOTFS_DEVICE_CREATION_DYNAMIC_EUDEV=y
+BR2_PACKAGE_LIBINPUT=y
+BR2_PACKAGE_LIBXKBCOMMON=y
+# libxkbcommon is only the compiler; without the keymap database flutter-pi
+# reports "Could not create XKB context" and runs with NO keyboard at all, so
+# nothing is reachable by d-pad. Needed on the rpi4 target too.
+BR2_PACKAGE_XKEYBOARD_CONFIG=y
+
+# --- Playback: GStreamer inside the flutter-pi process (DRM-master option 1) ---
+# HTTP source for Jellyfin streams, both containers Jellyfin direct-plays,
+# HLS + MPEG-TS for its transcodes, and libav decoders: no VM has a VideoCore,
+# so the VM decodes in software. The Pi pins V4L2 decoders instead - never
+# decodebin there - so these libav decoders are a VM-only fallback.
+BR2_PACKAGE_GSTREAMER1=y
+BR2_PACKAGE_GST1_PLUGINS_BASE=y
+BR2_PACKAGE_GST1_PLUGINS_BASE_PLUGIN_PLAYBACK=y
+BR2_PACKAGE_GST1_PLUGINS_BASE_PLUGIN_TYPEFIND=y
+BR2_PACKAGE_GST1_PLUGINS_BASE_PLUGIN_APP=y
+BR2_PACKAGE_GST1_PLUGINS_BASE_PLUGIN_VIDEOCONVERTSCALE=y
+BR2_PACKAGE_GST1_PLUGINS_BASE_PLUGIN_AUDIOCONVERT=y
+BR2_PACKAGE_GST1_PLUGINS_BASE_PLUGIN_AUDIORESAMPLE=y
+BR2_PACKAGE_GST1_PLUGINS_BASE_PLUGIN_ALSA=y
+BR2_PACKAGE_GST1_PLUGINS_GOOD=y
+BR2_PACKAGE_GST1_PLUGINS_GOOD_PLUGIN_SOUPHTTPSRC=y
+BR2_PACKAGE_GST1_PLUGINS_GOOD_PLUGIN_MATROSKA=y
+BR2_PACKAGE_GST1_PLUGINS_GOOD_PLUGIN_ISOMP4=y
+BR2_PACKAGE_GST1_PLUGINS_GOOD_PLUGIN_AUTODETECT=y
+BR2_PACKAGE_GST1_PLUGINS_BAD=y
+BR2_PACKAGE_GST1_PLUGINS_BAD_PLUGIN_VIDEOPARSERS=y
+BR2_PACKAGE_GST1_PLUGINS_BAD_PLUGIN_HLS=y
+BR2_PACKAGE_GST1_PLUGINS_BAD_PLUGIN_MPEGTSDEMUX=y
+BR2_PACKAGE_GST1_LIBAV=y
+# Mixer control at boot (S15mira-audio): ALSA starts muted, and a read-only
+# image has no saved state to restore, so without these films play in silence.
+BR2_PACKAGE_ALSA_UTILS=y
+BR2_PACKAGE_ALSA_UTILS_ALSACTL=y
+BR2_PACKAGE_ALSA_UTILS_AMIXER=y
+
+# Root certificates. Without them every HTTPS request from the box fails, and
+# silently: Discover's TMDB artwork rendered as placeholder gradients while
+# Jellyfin's plain-http posters loaded fine (found in the VM, 2026-09-13).
+# Needed on the rpi4 target too.
+BR2_PACKAGE_CA_CERTIFICATES=y
+
+# --- Mira ---
+BR2_PACKAGE_MIRAD=y
+BR2_PACKAGE_SD_EVENT_SHIM=y
+BR2_PACKAGE_FLUTTERPI=y
+BR2_PACKAGE_MIRA_SHELL=y

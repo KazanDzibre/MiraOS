@@ -1,0 +1,19 @@
+# Build outputs
+/out/*
+!/out/.gitkeep
+
+# Vendored toolchains and sources (large, reproducible via scripts/)
+/.toolchain/
+/buildroot/
+/build/
+
+# Flutter
+/shell/.dart_tool/
+/shell/build/
+/shell/.flutter-plugins*
+/shell/pubspec.lock
+
+# Editor / OS noise
+*.swp
+.DS_Store
+.claude

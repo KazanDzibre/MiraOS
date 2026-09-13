@@ -1,0 +1,12 @@
+# No external lint package: one less thing that has to resolve at image build
+# time. The analyzer's own strict modes catch what matters here.
+analyzer:
+  language:
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
+  errors:
+    todo: ignore
+  exclude:
+    - build/**
+    - linux/**

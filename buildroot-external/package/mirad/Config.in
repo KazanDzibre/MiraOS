@@ -1,0 +1,7 @@
+config BR2_PACKAGE_MIRAD
+	bool "mirad"
+	help
+	  Mira system supervisor. Prepares persistent state and
+	  supervises mira-shell, restarting it with backoff if it dies.
+
+	  This is the process init hands the box off to.

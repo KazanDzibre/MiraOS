@@ -1,0 +1,50 @@
+Fall back to drmModeAddFB2 when the KMS driver cannot do modifiers
+
+virtio-gpu does not advertise DRM_CAP_ADDFB2_MODIFIERS, so
+drmModeAddFB2WithModifiers fails with EINVAL on every frame in a QEMU
+guest, even though mesa returns a buffer with a linear modifier.
+
+Check the capability and use plain drmModeAddFB2 when it is absent.
+
+Signed-off-by: Mira <noreply@anthropic.com>
+
+--- a/src/modesetting.c
++++ b/src/modesetting.c
+@@ -1466,6 +1466,28 @@
+     return ok;
+ }
+ 
++/*
++ * Not every KMS driver accepts DRM_MODE_FB_MODIFIERS.
++ *
++ * virtio-gpu - which is what a QEMU guest gets, and therefore what anyone
++ * testing in a VM hits - does not advertise DRM_CAP_ADDFB2_MODIFIERS, so
++ * drmModeAddFB2WithModifiers fails with EINVAL there. mesa still hands us a
++ * buffer carrying a (linear) modifier, so has_modifiers is true and every
++ * single frame fails to present.
++ *
++ * Fall back to plain drmModeAddFB2 when the device cannot do modifiers.
++ */
++static bool drmdev_supports_fb_modifiers(struct drmdev *drmdev) {
++    static int cached = -1;
++
++    if (cached == -1) {
++        uint64_t cap = 0;
++        cached = (drmGetCap(drmdev->fd, DRM_CAP_ADDFB2_MODIFIERS, &cap) == 0) && (cap != 0);
++    }
++
++    return cached == 1;
++}
++
+ uint32_t drmdev_add_fb_multiplanar_locked(
+     struct drmdev *drmdev,
+     uint32_t width,
+@@ -1507,7 +1529,7 @@
+     memcpy(fb->offsets, offsets, sizeof(fb->offsets));
+ 
+     fb_id = 0;
+-    if (has_modifiers) {
++    if (has_modifiers && drmdev_supports_fb_modifiers(drmdev)) {
+         ok = drmModeAddFB2WithModifiers(
+             drmdev->fd,
+             width,

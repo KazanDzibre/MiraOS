@@ -1,0 +1,32 @@
+config BR2_PACKAGE_FLUTTERPI
+	bool "flutterpi (Mira build)"
+	depends on BR2_PACKAGE_FLUTTER_ENGINE_BIN_ARCH_SUPPORTS
+	depends on BR2_TOOLCHAIN_HAS_THREADS
+	depends on BR2_TOOLCHAIN_USES_GLIBC
+	depends on !BR2_STATIC_LIBS
+	depends on BR2_PACKAGE_HAS_LIBGLES
+	depends on BR2_PACKAGE_HAS_LIBGBM
+	depends on BR2_PACKAGE_HAS_UDEV
+	select BR2_PACKAGE_FLUTTER_ENGINE_BIN
+	select BR2_PACKAGE_SD_EVENT_SHIM
+	select BR2_PACKAGE_LIBDRM
+	select BR2_PACKAGE_LIBINPUT
+	select BR2_PACKAGE_LIBXKBCOMMON
+	select BR2_PACKAGE_GSTREAMER1 # video player plugin
+	select BR2_PACKAGE_GST1_PLUGINS_BASE
+	select BR2_PACKAGE_GST1_PLUGINS_BASE_PLUGIN_APP # appsink
+	help
+	  flutter-pi, the Flutter embedder that renders straight to
+	  DRM/KMS with no X11 and no Wayland.
+
+	  Mira builds it separately from Buildroot's flutter-pi package
+	  because that one depends on BR2_PACKAGE_SYSTEMD, which in
+	  Buildroot can only be enabled when systemd is also init. Mira
+	  uses BusyBox init and supplies sd-event itself - see
+	  sd-event-shim.
+
+comment "flutterpi needs OpenGL ES, GBM, udev and a glibc toolchain w/ threads"
+	depends on BR2_PACKAGE_FLUTTER_ENGINE_BIN_ARCH_SUPPORTS
+	depends on !BR2_PACKAGE_HAS_LIBGLES || !BR2_PACKAGE_HAS_LIBGBM \
+		|| !BR2_PACKAGE_HAS_UDEV || !BR2_TOOLCHAIN_HAS_THREADS \
+		|| !BR2_TOOLCHAIN_USES_GLIBC || BR2_STATIC_LIBS

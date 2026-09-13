@@ -1,0 +1,6 @@
+config BR2_PACKAGE_NETBIRD
+	bool "netbird"
+	help
+	  NetBird mesh VPN client, used to reach the home server.
+
+	  Not yet implemented - placeholder so the Mira menu resolves.

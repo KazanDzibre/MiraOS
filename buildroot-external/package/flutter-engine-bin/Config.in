@@ -1,0 +1,26 @@
+config BR2_PACKAGE_FLUTTER_ENGINE_BIN_ARCH_SUPPORTS
+	bool
+	default y if BR2_x86_64
+
+config BR2_PACKAGE_FLUTTER_ENGINE_BIN
+	bool "flutter-engine-bin"
+	depends on BR2_PACKAGE_FLUTTER_ENGINE_BIN_ARCH_SUPPORTS
+	depends on BR2_TOOLCHAIN_USES_GLIBC
+	depends on !BR2_STATIC_LIBS
+	depends on BR2_INSTALL_LIBSTDCPP
+	help
+	  The prebuilt Flutter engine matching the SDK pinned in
+	  .toolchain/, rather than Buildroot's flutter-engine.
+
+	  Buildroot's package builds the engine from source with
+	  gclient and depot-tools - hours of build time, tens of GB -
+	  and pins engine 3.29.2, which does not match Mira's Flutter
+	  3.47.4. An engine that does not match its SDK fails at
+	  runtime with errors that never name the real cause.
+
+	  This is the JIT engine, so an ordinary `flutter build bundle`
+	  runs directly with no AOT step.
+
+comment "flutter-engine-bin needs a glibc toolchain w/ C++, dynamic library"
+	depends on BR2_PACKAGE_FLUTTER_ENGINE_BIN_ARCH_SUPPORTS
+	depends on !BR2_TOOLCHAIN_USES_GLIBC || BR2_STATIC_LIBS || !BR2_INSTALL_LIBSTDCPP

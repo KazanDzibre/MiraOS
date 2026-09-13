@@ -1,0 +1,30 @@
+Always log the formats the video appsink accepts
+
+flutter-pi restricts the appsink's caps to formats EGL can import as
+DMA-BUF. When that list is empty the caps are empty, no decoder pad can
+link, and playback hangs forever with only a GStreamer "delayed linking
+failed" warning - the actual reason is only printed at debug level.
+
+Print the format count and the resulting caps unconditionally, once per
+player, so the cause is on the console instead of behind a debug build.
+
+Signed-off-by: Mira <noreply@anthropic.com>
+
+--- a/src/plugins/gstreamer_video_player/player.c
++++ b/src/plugins/gstreamer_video_player/player.c
+@@ -928,6 +928,15 @@
+         gst_caps_append(caps, gst_caps_new_simple("video/x-raw", "format", G_TYPE_STRING, gst_video_format_to_string(gst_format), NULL));
+     }
+     gst_app_sink_set_caps(GST_APP_SINK(sink), caps);
++    {
++        // Mira: always say what the sink accepts. When EGL offers no importable
++        // format these caps are empty, no decoder pad can link, and playback
++        // hangs with only a 'delayed linking failed' warning to go on.
++        gchar *caps_str = gst_caps_to_string(caps);
++        fprintf(stderr, "[gstreamer video player] %d importable formats, appsink caps: %s\n",
++                frame_interface_get_n_formats(player->frame_interface), caps_str);
++        g_free(caps_str);
++    }
+     gst_caps_unref(caps);
+
+     gst_app_sink_set_callbacks(

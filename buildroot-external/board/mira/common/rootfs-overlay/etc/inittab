@@ -1,0 +1,28 @@
+# Mira init table (BusyBox init).
+#
+# Format: <id>:<runlevels>:<action>:<process>
+# BusyBox ignores <runlevels>. <id> names the tty, without the /dev/ prefix.
+
+# --- System bring-up ---
+::sysinit:/bin/mount -t proc proc /proc
+::sysinit:/bin/mount -o remount,rw /
+::sysinit:/bin/mkdir -p /dev/pts /dev/shm
+::sysinit:/bin/mount -a
+::sysinit:/bin/mkdir -p /run/lock /var/lock
+::sysinit:/bin/hostname -F /etc/hostname
+::sysinit:/sbin/mira-sysinit
+
+# --- The appliance itself ---
+# mirad owns mira-shell and restarts it on crash. It runs on tty1, which is
+# also what the user sees, so keep it the only thing on that console.
+tty1::respawn:/usr/bin/mirad
+
+# --- Diagnostics ---
+# A serial getty costs nothing and is the difference between debugging a black
+# screen and reflashing. Deliberately NOT on tty1.
+ttyS0::respawn:/sbin/getty -L ttyS0 115200 vt100
+
+# --- Shutdown ---
+::ctrlaltdel:/sbin/reboot
+::shutdown:/etc/init.d/rcK
+::shutdown:/bin/umount -a -r

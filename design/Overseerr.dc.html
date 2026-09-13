@@ -1,0 +1,173 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=Archivo+Black&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: #e8b04b; } a:hover { color: #f5cd80; }
+  </style>
+</helmet>
+
+<div style="width: 1920px; height: 1080px; position: relative; overflow: hidden; background: #08080a; font-family: Archivo, system-ui, sans-serif; color: #f6f4f0;">
+
+  <div style="position: absolute; inset: 0; background: radial-gradient(110% 80% at 72% 10%, #2a4a5e 0%, #16272f 36%, #0a1013 68%, #08080a 100%);"></div>
+  <div style="position: absolute; inset: 0; background: linear-gradient(180deg, rgba(6,6,8,0.74) 0%, rgba(6,6,8,0.90) 40%, rgba(6,6,8,0.96) 100%);"></div>
+
+  <div style="position: absolute; inset: 0; padding: 72px 80px 0 80px; box-sizing: border-box; display: flex; flex-direction: column; gap: 40px;">
+
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <div style="display: flex; align-items: center; gap: 48px;">
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#e8b04b" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.2 13.9 9.4 20.2 9.6 15.2 13.4 17 19.7 12 15.8 7 19.7 8.8 13.4 3.8 9.6 10.1 9.4Z"></path></svg>
+          <div style="font-family: 'Archivo Black', Archivo, sans-serif; font-size: 22px; letter-spacing: 0.34em; color: #f6f4f0;">MIRA</div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 36px; font-size: 21px;">
+          <span style="color: rgba(246,244,240,0.46);">Home</span>
+          <div style="display: flex; flex-direction: column; gap: 9px; align-items: center;">
+            <span style="color: #f6f4f0; font-weight: 600;">Discover</span>
+            <span style="width: 100%; height: 3px; background: #e8b04b;"></span>
+          </div>
+          <span style="color: rgba(246,244,240,0.46);">Films</span>
+          <span style="color: rgba(246,244,240,0.46);">Shows</span>
+          <span style="color: rgba(246,244,240,0.46);">Settings</span>
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 26px; font-size: 18px; color: rgba(246,244,240,0.62);">
+        <div style="display: flex; align-items: center; gap: 9px;">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#6fcf8a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 20 6v5.4c0 5-3.4 8.6-8 9.8-4.6-1.2-8-4.8-8-9.8V6Z"></path><path d="m8.9 12.1 2.1 2.1 4.1-4.3"></path></svg>
+          <span style="letter-spacing: 0.06em;">homelab</span>
+        </div>
+        <div style="font-variant-numeric: tabular-nums;">21:04</div>
+      </div>
+    </div>
+
+    <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <div style="font-size: 15px; letter-spacing: 0.30em; color: #e8b04b; font-weight: 600;">OVERSEERR</div>
+        <div style="font-family: 'Archivo Black', Archivo, sans-serif; font-size: 56px; letter-spacing: -0.015em;">Discover</div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <div style="height: 68px; display: flex; align-items: center; padding: 0 30px; border-radius: 6px; background: rgba(246,244,240,0.10); border: 1px solid rgba(246,244,240,0.18); font-size: 19px;">Trending</div>
+        <div style="height: 68px; display: flex; align-items: center; padding: 0 30px; border-radius: 6px; font-size: 19px; color: rgba(246,244,240,0.52);">Popular</div>
+        <div style="height: 68px; display: flex; align-items: center; padding: 0 30px; border-radius: 6px; font-size: 19px; color: rgba(246,244,240,0.52);">Upcoming</div>
+        <div style="height: 68px; display: flex; align-items: center; gap: 12px; padding: 0 28px; border-radius: 6px; border: 1px solid rgba(246,244,240,0.18); font-size: 19px; color: rgba(246,244,240,0.68);">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="rgba(246,244,240,0.68)" stroke-width="1.9" stroke-linecap="round"><circle cx="10.8" cy="10.8" r="6.6"></circle><path d="m15.6 15.6 4.4 4.4"></path></svg>
+          Search
+        </div>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 32px;">
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="position: relative; width: 100%; height: 400px; border-radius: 5px; background: linear-gradient(160deg, #3f5b4a 0%, #17231d 100%); border: 1px solid rgba(255,255,255,0.07);">
+          <div style="position: absolute; top: 12px; right: 12px; display: flex; align-items: center; gap: 7px; height: 34px; padding: 0 12px; border-radius: 17px; background: rgba(8,8,10,0.80); border: 1px solid rgba(111,207,138,0.55);">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6fcf8a" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5.4 12.4 4.2 4.2 9-9.4"></path></svg>
+            <span style="font-size: 14px; color: #6fcf8a; letter-spacing: 0.06em;">IN LIBRARY</span>
+          </div>
+        </div>
+        <div style="font-size: 18px; color: rgba(246,244,240,0.52);">Vantage</div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="position: relative; width: 100%; height: 400px; border-radius: 6px; background: linear-gradient(160deg, #4a6a86 0%, #16242e 100%); box-shadow: 0 0 0 4px #e8b04b, 0 0 0 10px rgba(232,176,75,0.22), 0 18px 46px rgba(0,0,0,0.66);"></div>
+        <div style="display: flex; flex-direction: column; gap: 3px;">
+          <div style="font-size: 20px; font-weight: 600; color: #f6f4f0;">The Ninth Hour</div>
+          <div style="font-size: 17px; color: #e8b04b;">2025 &middot; not in library</div>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="position: relative; width: 100%; height: 400px; border-radius: 5px; background: linear-gradient(160deg, #5a4a6b 0%, #1f1a26 100%); border: 1px solid rgba(255,255,255,0.07);">
+          <div style="position: absolute; top: 12px; right: 12px; display: flex; align-items: center; gap: 7px; height: 34px; padding: 0 12px; border-radius: 17px; background: rgba(8,8,10,0.80); border: 1px solid rgba(232,176,75,0.55);">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#e8b04b" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="8.4"></circle><path d="M12 7.6V12l3 2"></path></svg>
+            <span style="font-size: 14px; color: #e8b04b; letter-spacing: 0.06em;">PENDING</span>
+          </div>
+        </div>
+        <div style="font-size: 18px; color: rgba(246,244,240,0.52);">Coldwater</div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="width: 100%; height: 400px; border-radius: 5px; background: linear-gradient(160deg, #6b4a3a 0%, #241813 100%); border: 1px solid rgba(255,255,255,0.07);"></div>
+        <div style="font-size: 18px; color: rgba(246,244,240,0.52);">Marrow</div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="position: relative; width: 100%; height: 400px; border-radius: 5px; background: linear-gradient(160deg, #6d5430 0%, #241c12 100%); border: 1px solid rgba(255,255,255,0.07);">
+          <div style="position: absolute; top: 12px; right: 12px; display: flex; align-items: center; gap: 7px; height: 34px; padding: 0 12px; border-radius: 17px; background: rgba(8,8,10,0.80); border: 1px solid rgba(111,207,138,0.55);">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6fcf8a" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5.4 12.4 4.2 4.2 9-9.4"></path></svg>
+            <span style="font-size: 14px; color: #6fcf8a; letter-spacing: 0.06em;">IN LIBRARY</span>
+          </div>
+        </div>
+        <div style="font-size: 18px; color: rgba(246,244,240,0.52);">Signal Fire</div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="width: 100%; height: 400px; border-radius: 5px; background: linear-gradient(160deg, #3a5b57 0%, #14201f 100%); border: 1px solid rgba(255,255,255,0.07);"></div>
+        <div style="font-size: 18px; color: rgba(246,244,240,0.52);">Atlas Bloom</div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="width: 100%; height: 400px; border-radius: 5px; background: linear-gradient(160deg, #4c4f75 0%, #191a28 100%); border: 1px solid rgba(255,255,255,0.07);"></div>
+        <div style="font-size: 18px; color: rgba(246,244,240,0.52);">Understory</div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="width: 100%; height: 400px; border-radius: 5px; background: linear-gradient(160deg, #2b4f66 0%, #0f1e28 100%); border: 1px solid rgba(255,255,255,0.07);"></div>
+        <div style="font-size: 18px; color: rgba(246,244,240,0.52);">Rivermouth</div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="width: 100%; height: 400px; border-radius: 5px; background: linear-gradient(160deg, #6a3540 0%, #24131a 100%); border: 1px solid rgba(255,255,255,0.07);"></div>
+        <div style="font-size: 18px; color: rgba(246,244,240,0.52);">Glasshouse</div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="width: 100%; height: 400px; border-radius: 5px; background: linear-gradient(160deg, #4a5c3a 0%, #1a2015 100%); border: 1px solid rgba(255,255,255,0.07);"></div>
+        <div style="font-size: 18px; color: rgba(246,244,240,0.52);">The Undertow</div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="width: 100%; height: 400px; border-radius: 5px; background: linear-gradient(160deg, #5e5442 0%, #23201a 100%); border: 1px solid rgba(255,255,255,0.07);"></div>
+        <div style="font-size: 18px; color: rgba(246,244,240,0.52);">Sable</div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="width: 100%; height: 400px; border-radius: 5px; background: linear-gradient(160deg, #35696b 0%, #0a1a1c 100%); border: 1px solid rgba(255,255,255,0.07);"></div>
+        <div style="font-size: 18px; color: rgba(246,244,240,0.52);">Northwind</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- d-pad button hints: what OK and BACK do for whatever is focused -->
+  <div style="position: absolute; left: 0; right: 0; bottom: 0; height: 172px; background: linear-gradient(0deg, rgba(6,6,8,0.98) 0%, rgba(6,6,8,0.86) 48%, rgba(6,6,8,0.00) 100%);"></div>
+  <div style="position: absolute; left: 80px; right: 80px; bottom: 46px; display: flex; justify-content: space-between; align-items: center;">
+    <div style="display: flex; align-items: baseline; gap: 18px;">
+      <div style="font-size: 30px; font-weight: 600; color: #f6f4f0;">The Ninth Hour</div>
+      <div style="font-size: 20px; color: rgba(246,244,240,0.52);">2025 &middot; 2 h 06 &middot; Thriller</div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 30px;">
+      <div style="display: flex; align-items: center; gap: 13px;">
+        <span style="width: 42px; height: 42px; border-radius: 50%; border: 2px solid #e8b04b; color: #e8b04b; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 600; letter-spacing: 0.06em;">OK</span>
+        <span style="font-size: 20px; color: #f6f4f0;">Request</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 13px;">
+        <span style="width: 42px; height: 42px; border-radius: 50%; border: 2px solid rgba(246,244,240,0.34); display: flex; align-items: center; justify-content: center;">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="rgba(246,244,240,0.72)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m14.6 5.4-6.8 6.6 6.8 6.6"></path></svg>
+        </span>
+        <span style="font-size: 20px; color: rgba(246,244,240,0.62);">Details</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

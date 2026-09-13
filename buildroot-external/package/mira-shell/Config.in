@@ -1,0 +1,11 @@
+config BR2_PACKAGE_MIRA_SHELL
+	bool "mira-shell"
+	depends on BR2_PACKAGE_FLUTTERPI
+	help
+	  Mira Shell - the Flutter launcher, as a flutter-pi asset bundle.
+
+	  Build the bundle first with ./scripts/build-shell.sh; this
+	  package installs it and the launcher that mirad supervises.
+
+comment "mira-shell needs flutterpi"
+	depends on !BR2_PACKAGE_FLUTTERPI

@@ -1,0 +1,129 @@
+Copy software-decoded frames into real-sized GBM buffers
+
+dup_gst_memory_as_dmabuf allocates an R8 GBM BO that is one pixel high
+and as wide as the frame's byte count - over 6 MB wide for a 1080p RGB
+frame. Drivers with an ordinary maximum texture size refuse that (virgl
+in QEMU does), so every software-decoded frame failed to upload.
+
+For single-plane frames, allocate a BO with the frame's own width, height
+and DRM format instead, copy it row by row, and import it with the BO's
+stride as the pitch. DMA-BUF frames from hardware decoders are untouched.
+
+Signed-off-by: Mira <noreply@anthropic.com>
+
+--- a/src/plugins/gstreamer_video_player/frame.c
++++ b/src/plugins/gstreamer_video_player/frame.c
+@@ -566,6 +566,89 @@
+ }
+ #endif
+ 
++static uint32_t drm_format_from_gst_info(const GstVideoInfo *info);
++
++/*
++ * Mira: copy one packed plane into a GBM BO with the frame's real size and
++ * format, row by row, and return its dmabuf fd plus the BO's stride.
++ *
++ * dup_gst_memory_as_dmabuf creates an R8 BO one pixel high and as wide as the
++ * frame's byte count - over 6 MB wide at 1080p - which drivers with a normal
++ * texture size limit (virgl) refuse, so every software-decoded frame failed.
++ */
++static int dup_frame_plane_as_bo(
++    struct gbm_device *gbm_device,
++    const GstVideoInfo *info,
++    GstMemory *memory,
++    size_t offset,
++    int src_stride,
++    uint32_t *pitch_out
++) {
++    GstMapInfo map_info;
++    struct gbm_bo *bo;
++    void *map, *map_data;
++    uint32_t map_stride, format;
++    size_t row_bytes;
++    int width, height, fd;
++
++    width = GST_VIDEO_INFO_WIDTH(info);
++    height = GST_VIDEO_INFO_HEIGHT(info);
++    format = drm_format_from_gst_info(info);
++    row_bytes = (size_t) GST_VIDEO_INFO_COMP_PSTRIDE(info, 0) * (size_t) width;
++
++    if (format == DRM_FORMAT_INVALID || src_stride <= 0 || width <= 0 || height <= 0) {
++        return -1;
++    }
++
++    if (gst_memory_map(memory, &map_info, GST_MAP_READ) == FALSE) {
++        LOG_ERROR("Couldn't map gstreamer video frame memory to copy it into a GBM BO.\n");
++        return -1;
++    }
++
++    fd = -1;
++    if (offset + (size_t) src_stride * (size_t) (height - 1) + row_bytes > map_info.size) {
++        LOG_ERROR("Video frame memory is smaller than its format says.\n");
++        goto out_unmap;
++    }
++
++    bo = gbm_bo_create(gbm_device, width, height, format, GBM_BO_USE_LINEAR | GBM_BO_USE_RENDERING);
++    if (bo == NULL) {
++        LOG_ERROR("Couldn't create %dx%d GBM BO to copy video frame into.\n", width, height);
++        goto out_unmap;
++    }
++
++    map_data = NULL;
++    map = gbm_bo_map(bo, 0, 0, width, height, GBM_BO_TRANSFER_WRITE, &map_stride, &map_data);
++    if (map == NULL) {
++        LOG_ERROR("Couldn't mmap %dx%d GBM BO to copy video frame into it.\n", width, height);
++        gbm_bo_destroy(bo);
++        goto out_unmap;
++    }
++
++    for (int y = 0; y < height; y++) {
++        memcpy(
++            (uint8_t *) map + (size_t) y * map_stride,
++            (const uint8_t *) map_info.data + offset + (size_t) y * (size_t) src_stride,
++            row_bytes < map_stride ? row_bytes : map_stride
++        );
++    }
++
++    gbm_bo_unmap(bo, map_data);
++
++    fd = gbm_bo_get_fd(bo);
++    if (fd < 0) {
++        LOG_ERROR("Couldn't get dmabuf fd of video frame GBM BO.\n");
++    }
++    *pitch_out = gbm_bo_get_stride(bo);
++
++    // The dmabuf fd keeps the buffer alive, as in dup_gst_memory_as_dmabuf.
++    gbm_bo_destroy(bo);
++
++out_unmap:
++    gst_memory_unmap(memory, &map_info);
++    return fd;
++}
++
+ static int
+ get_plane_infos(GstBuffer *buffer, const GstVideoInfo *info, struct gbm_device *gbm_device, struct plane_info plane_infos[MAX_N_PLANES]) {
+     GstVideoMeta *meta;
+@@ -665,6 +748,23 @@
+                 }
+ 
+                 plane_infos[i].fd = ok;
++            } else if (n_planes == 1) {
++                // Mira: a real-sized BO, not a byte-wide R8 strip. See dup_frame_plane_as_bo.
++                uint32_t pitch = 0;
++
++                ok = dup_frame_plane_as_bo(gbm_device, info, memory, offset_in_memory, stride, &pitch);
++                if (ok < 0) {
++                    LOG_ERROR("Could not copy video frame into a GBM BO.\n");
++                    ok = EIO;
++                    goto fail_close_fds;
++                }
++
++                plane_infos[i].fd = ok;
++                plane_infos[i].offset = 0;
++                plane_infos[i].pitch = pitch;
++                plane_infos[i].has_modifier = false;
++                plane_infos[i].modifier = DRM_FORMAT_MOD_LINEAR;
++                continue;
+             } else {
+                 /// TODO: When duping, duplicate all non-dmabuf memories into one
+                 /// gbm buffer instead.

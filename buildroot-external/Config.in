@@ -1,0 +1,9 @@
+menu "Mira packages"
+	source "$BR2_EXTERNAL_MIRA_PATH/package/sd-event-shim/Config.in"
+	source "$BR2_EXTERNAL_MIRA_PATH/package/mirad/Config.in"
+	source "$BR2_EXTERNAL_MIRA_PATH/package/flutter-engine-bin/Config.in"
+	source "$BR2_EXTERNAL_MIRA_PATH/package/flutterpi/Config.in"
+	source "$BR2_EXTERNAL_MIRA_PATH/package/mira-shell/Config.in"
+	source "$BR2_EXTERNAL_MIRA_PATH/package/mira-inputd/Config.in"
+	source "$BR2_EXTERNAL_MIRA_PATH/package/netbird/Config.in"
+endmenu

@@ -1,0 +1,236 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=Archivo+Black&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: #e8b04b; } a:hover { color: #f5cd80; }
+  </style>
+</helmet>
+
+<div style="width: 1920px; height: 1080px; position: relative; overflow: hidden; background: #08080a; font-family: Archivo, system-ui, sans-serif; color: #f6f4f0;">
+  <div style="position: absolute; inset: 0; background: radial-gradient(90% 70% at 76% 10%, rgba(53,105,107,0.20) 0%, rgba(0,0,0,0) 62%);"></div>
+
+  <div style="position: absolute; inset: 0; padding: 72px 80px; box-sizing: border-box; display: flex; flex-direction: column; gap: 44px;">
+
+    <div style="display: flex; flex-direction: column; gap: 18px;">
+      <div style="font-size: 15px; letter-spacing: 0.30em; color: #e8b04b; font-weight: 600;">INTERACTION</div>
+      <div style="font-family: 'Archivo Black', Archivo, sans-serif; font-size: 56px; line-height: 1; letter-spacing: -0.02em;">Built for the d-pad</div>
+      <div style="font-size: 22px; line-height: 1.5; color: rgba(246,244,240,0.72); max-width: 1020px; text-wrap: pretty;">Everything is reachable with the direction pad alone, like any TV app. The gyro cursor is an option layered on top &mdash; switch it off below and nothing becomes unreachable.</div>
+    </div>
+
+    <div style="display: flex; gap: 72px; flex-grow: 1;">
+
+      <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 32px;">
+
+        <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 28px;">
+          <sc-for list="{{tiles}}" as="t" hint-placeholder-count="4">
+            <div style="{{ t.wrap }}" onMouseEnter="{{ t.hover }}" onClick="{{ t.hover }}">
+              <div style="{{ t.art }}"></div>
+              <div style="display: flex; flex-direction: column; gap: 3px;">
+                <div style="{{ t.title }}">{{ t.name }}</div>
+                <div style="{{ t.meta }}">{{ t.year }}</div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 18px;">
+          <sc-for list="{{buttons}}" as="b" hint-placeholder-count="3">
+            <div style="{{ b.style }}" onMouseEnter="{{ b.hover }}" onClick="{{ b.hover }}">{{ b.label }}</div>
+          </sc-for>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 14px; padding-top: 4px;">
+          <span style="font-size: 18px; letter-spacing: 0.20em; color: rgba(246,244,240,0.38);">FOCUSED</span>
+          <span style="font-size: 22px; color: #e8b04b; font-weight: 600;">{{ focusedName }}</span>
+          <span style="{{ pointerNoteStyle }}">{{ pointerNote }}</span>
+        </div>
+
+      </div>
+
+      <div style="width: 452px; flex-shrink: 0; display: flex; flex-direction: column; gap: 34px;">
+
+        <div style="border-radius: 12px; background: rgba(246,244,240,0.06); border: 1px solid rgba(246,244,240,0.12); padding: 28px; display: flex; flex-direction: column; align-items: center; gap: 26px;">
+          <div style="font-size: 14px; letter-spacing: 0.30em; color: rgba(246,244,240,0.46); font-weight: 600;">REMOTE</div>
+
+          <div style="display: grid; grid-template-columns: repeat(3, 76px); grid-template-rows: repeat(3, 76px); gap: 10px;">
+            <div></div>
+            <div style="border-radius: 8px; background: rgba(246,244,240,0.10); display: flex; align-items: center; justify-content: center; cursor: pointer;" onClick="{{ up }}">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#f6f4f0" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="m6.4 14.6 5.6-5.6 5.6 5.6"></path></svg>
+            </div>
+            <div></div>
+
+            <div style="border-radius: 8px; background: rgba(246,244,240,0.10); display: flex; align-items: center; justify-content: center; cursor: pointer;" onClick="{{ left }}">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#f6f4f0" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="m14.6 6.4-5.6 5.6 5.6 5.6"></path></svg>
+            </div>
+            <div style="border-radius: 50%; background: rgba(232,176,75,0.18); border: 2px solid #e8b04b; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 600; color: #e8b04b; letter-spacing: 0.08em;">OK</div>
+            <div style="border-radius: 8px; background: rgba(246,244,240,0.10); display: flex; align-items: center; justify-content: center; cursor: pointer;" onClick="{{ right }}">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#f6f4f0" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="m9.4 6.4 5.6 5.6-5.6 5.6"></path></svg>
+            </div>
+
+            <div></div>
+            <div style="border-radius: 8px; background: rgba(246,244,240,0.10); display: flex; align-items: center; justify-content: center; cursor: pointer;" onClick="{{ down }}">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#f6f4f0" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="m6.4 9.4 5.6 5.6 5.6-5.6"></path></svg>
+            </div>
+            <div></div>
+          </div>
+
+          <div style="width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 16px;">
+            <div style="display: flex; align-items: center; gap: 11px; font-size: 19px; color: rgba(246,244,240,0.72);">
+              <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="rgba(246,244,240,0.72)" stroke-width="1.8" stroke-linejoin="round"><path d="m5.6 3.4 13.2 7.8-5.8 1.4 3.2 6.2-2.6 1.4-3.2-6.2-4.2 4.2Z"></path></svg>
+              <span>Gyro cursor</span>
+            </div>
+            <div style="display: flex; border-radius: 6px; overflow: hidden; border: 1px solid rgba(246,244,240,0.22);">
+              <div style="{{ onStyle }}" onClick="{{ pointerOn }}">On</div>
+              <div style="{{ offStyle }}" onClick="{{ pointerOff }}">Off</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 18px;">
+          <div style="display: flex; gap: 14px; align-items: flex-start;">
+            <span style="width: 8px; height: 8px; border-radius: 50%; background: #e8b04b; margin-top: 9px; flex-shrink: 0;"></span>
+            <div style="font-size: 19px; line-height: 1.45; color: rgba(246,244,240,0.66);">The d-pad is the primary model. Nothing is cursor-only, and the box is fully usable with the gyro switched off.</div>
+          </div>
+          <div style="display: flex; gap: 14px; align-items: flex-start;">
+            <span style="width: 8px; height: 8px; border-radius: 50%; background: #e8b04b; margin-top: 9px; flex-shrink: 0;"></span>
+            <div style="font-size: 19px; line-height: 1.45; color: rgba(246,244,240,0.66);">When the cursor is on it <span style="color: #f6f4f0;">moves focus</span> instead of drawing its own hover state, so the two inputs never disagree.</div>
+          </div>
+          <div style="display: flex; gap: 14px; align-items: flex-start;">
+            <span style="width: 8px; height: 8px; border-radius: 50%; background: #e8b04b; margin-top: 9px; flex-shrink: 0;"></span>
+            <div style="font-size: 19px; line-height: 1.45; color: rgba(246,244,240,0.66);">Focus remembers its column, so going down and back up returns you where you were.</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"$preview":{"width":1920,"height":1080}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    // memCol remembers which tile column we dropped from, so coming back up
+    // returns to the same tile even though three buttons serve four columns.
+    this.state = { focus: 1, memCol: null, pointer: true };
+  }
+
+  cur() {
+    var f = this.state ? this.state.focus : 1;
+    return (f === null || f === undefined) ? 1 : f;
+  }
+
+  isButton(i) {
+    return (i === 4 || i === 5 || i === 6);
+  }
+
+  move(dir) {
+    var idx = this.cur();
+    var row = this.isButton(idx) ? 1 : 0;
+    var col = (row === 0) ? idx : idx - 4;
+    var n = idx;
+    var mem = this.state.memCol;
+
+    if (dir === 'left') {
+      if (col > 0) { n = idx - 1; mem = null; }
+    } else if (dir === 'right') {
+      var max = (row === 0) ? 3 : 2;
+      if (max > col) { n = idx + 1; mem = null; }
+    } else if (dir === 'down') {
+      if (row === 0) { mem = col; n = 4 + Math.min(col, 2); }
+    } else if (dir === 'up') {
+      if (row === 1) {
+        var back = col;
+        if (mem !== null && mem !== undefined) {
+          if (Math.min(mem, 2) === col) { back = mem; }
+        }
+        n = back;
+        mem = null;
+      }
+    }
+    this.setState({ focus: n, memCol: mem });
+  }
+
+  renderVals() {
+    var self = this;
+    var focus = this.cur();
+    var pointer = this.state ? this.state.pointer : true;
+    var RING = '0 0 0 4px #e8b04b, 0 0 0 10px rgba(232,176,75,0.22), 0 18px 44px rgba(0,0,0,0.62)';
+    var noop = function () {};
+
+    var data = [
+      { name: 'Ashfall',       year: '2021',           art: 'linear-gradient(160deg, #6d4630 0%, #2b1c15 100%)' },
+      { name: 'The Salt Road', year: '2024 · HEVC 4K', art: 'linear-gradient(160deg, #35696b 0%, #123033 62%, #0a1a1c 100%)' },
+      { name: 'Nightjar',      year: '2019',           art: 'linear-gradient(160deg, #3c3f63 0%, #17182a 100%)' },
+      { name: 'Quiet Coast',   year: '2023',           art: 'linear-gradient(160deg, #5e5442 0%, #23201a 100%)' }
+    ];
+
+    var tiles = data.map(function (d, i) {
+      var on = (i === focus);
+      return {
+        name: d.name,
+        year: d.year,
+        wrap: 'display: flex; flex-direction: column; gap: 13px; cursor: ' + (pointer ? 'pointer' : 'default') + ';',
+        art: 'width: 100%; height: 418px; border-radius: 6px; background: ' + d.art + '; '
+           + (on ? 'box-shadow: ' + RING + ';' : 'border: 1px solid rgba(255,255,255,0.07);'),
+        title: 'font-size: 20px; color: ' + (on ? '#f6f4f0' : 'rgba(246,244,240,0.56)') + '; font-weight: ' + (on ? '600' : '400') + ';',
+        meta: 'font-size: 17px; color: ' + (on ? '#e8b04b' : 'rgba(246,244,240,0.34)') + ';',
+        hover: pointer ? function () { self.setState({ focus: i, memCol: null }); } : noop
+      };
+    });
+
+    var btnData = [
+      { label: 'Resume 1:12:40', primary: true },
+      { label: 'From start',     primary: false },
+      { label: 'More',           primary: false }
+    ];
+
+    var buttons = btnData.map(function (b, i) {
+      var idx = i + 4;
+      var on = (idx === focus);
+      var base = 'height: 68px; display: flex; align-items: center; padding: 0 32px; border-radius: 6px; font-size: 21px; cursor: ' + (pointer ? 'pointer' : 'default') + '; ';
+      var skin = b.primary
+        ? 'background: #f6f4f0; color: #0b0b0d; font-weight: 600; '
+        : 'border: 2px solid rgba(246,244,240,0.32); color: rgba(246,244,240,0.90); ';
+      return {
+        label: b.label,
+        style: base + skin + (on ? 'box-shadow: ' + RING + ';' : ''),
+        hover: pointer ? function () { self.setState({ focus: idx, memCol: null }); } : noop
+      };
+    });
+
+    var names = ['Ashfall', 'The Salt Road', 'Nightjar', 'Quiet Coast', 'Resume 1:12:40', 'From start', 'More'];
+
+    var segBase = 'height: 44px; display: flex; align-items: center; padding: 0 20px; font-size: 18px; cursor: pointer; ';
+    var segOn = segBase + 'background: #e8b04b; color: #0b0b0d; font-weight: 600;';
+    var segOff = segBase + 'color: rgba(246,244,240,0.62);';
+
+    return {
+      tiles: tiles,
+      buttons: buttons,
+      focusedName: names[focus],
+      pointerNote: pointer ? '' : 'cursor off — d-pad only',
+      pointerNoteStyle: 'font-size: 19px; color: rgba(246,244,240,0.42); padding-left: 8px;',
+      onStyle: pointer ? segOn : segOff,
+      offStyle: pointer ? segOff : segOn,
+      pointerOn: function () { self.setState({ pointer: true }); },
+      pointerOff: function () { self.setState({ pointer: false }); },
+      up: function () { self.move('up'); },
+      down: function () { self.move('down'); },
+      left: function () { self.move('left'); },
+      right: function () { self.move('right'); }
+    };
+  }
+}
+</script>
+</body>
+</html>

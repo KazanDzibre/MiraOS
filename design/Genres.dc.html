@@ -1,0 +1,266 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=Archivo+Black&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: #e8b04b; } a:hover { color: #f5cd80; }
+  </style>
+</helmet>
+
+<div style="width: 1920px; height: 1080px; position: relative; overflow: hidden; background: #08080a; font-family: Archivo, system-ui, sans-serif; color: #f6f4f0;">
+
+  <div style="position: absolute; inset: 0; background: radial-gradient(110% 80% at 24% 12%, #22454a 0%, #14262a 34%, #0a1114 66%, #08080a 100%);"></div>
+  <div style="position: absolute; inset: 0; background: linear-gradient(180deg, rgba(6,6,8,0.72) 0%, rgba(6,6,8,0.90) 38%, rgba(6,6,8,0.97) 100%);"></div>
+
+  <div style="position: absolute; inset: 0; padding: 72px 80px 0 80px; box-sizing: border-box; display: flex; flex-direction: column; gap: 40px;">
+
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <div style="display: flex; align-items: center; gap: 48px;">
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#e8b04b" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.2 13.9 9.4 20.2 9.6 15.2 13.4 17 19.7 12 15.8 7 19.7 8.8 13.4 3.8 9.6 10.1 9.4Z"></path></svg>
+          <div style="font-family: 'Archivo Black', Archivo, sans-serif; font-size: 22px; letter-spacing: 0.34em; color: #f6f4f0;">MIRA</div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 36px; font-size: 21px;">
+          <span style="color: rgba(246,244,240,0.46);">Home</span>
+          <span style="color: rgba(246,244,240,0.46);">Discover</span>
+          <div style="display: flex; flex-direction: column; gap: 9px; align-items: center;">
+            <span style="color: #f6f4f0; font-weight: 600;">Films</span>
+            <span style="width: 100%; height: 3px; background: #e8b04b;"></span>
+          </div>
+          <span style="color: rgba(246,244,240,0.46);">Shows</span>
+          <span style="color: rgba(246,244,240,0.46);">Settings</span>
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 26px; font-size: 18px; color: rgba(246,244,240,0.62);">
+        <div style="display: flex; align-items: center; gap: 9px;">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#6fcf8a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 20 6v5.4c0 5-3.4 8.6-8 9.8-4.6-1.2-8-4.8-8-9.8V6Z"></path><path d="m8.9 12.1 2.1 2.1 4.1-4.3"></path></svg>
+          <span style="letter-spacing: 0.06em;">homelab</span>
+        </div>
+        <div style="font-variant-numeric: tabular-nums;">21:04</div>
+      </div>
+    </div>
+
+    <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+      <div style="display: flex; align-items: baseline; gap: 22px;">
+        <div style="font-family: 'Archivo Black', Archivo, sans-serif; font-size: 56px; letter-spacing: -0.015em;">Genres</div>
+        <div style="font-size: 20px; color: rgba(246,244,240,0.46);">17 genres &middot; 45 films</div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <div style="height: 68px; display: flex; align-items: center; padding: 0 30px; border-radius: 6px; font-size: 19px; color: rgba(246,244,240,0.52);">All films</div>
+        <div style="height: 68px; display: flex; align-items: center; padding: 0 30px; border-radius: 6px; background: rgba(246,244,240,0.10); border: 1px solid rgba(246,244,240,0.18); font-size: 19px;">Genres</div>
+        <div style="height: 68px; display: flex; align-items: center; padding: 0 30px; border-radius: 6px; font-size: 19px; color: rgba(246,244,240,0.52);">Unwatched</div>
+        <div style="height: 68px; display: flex; align-items: center; padding: 0 30px; border-radius: 6px; font-size: 19px; color: rgba(246,244,240,0.52);">Recently added</div>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 32px;">
+        <div style="position: relative; height: 220px; border-radius: 6px; background: rgba(246,244,240,0.09); box-shadow: 0 0 0 4px #e8b04b, 0 0 0 10px rgba(232,176,75,0.22), 0 18px 46px rgba(0,0,0,0.66); overflow: hidden; display: flex; align-items: flex-end; padding: 0 28px 26px 28px; box-sizing: border-box;">
+          <div style="position: absolute; right: 24px; top: 26px; display: flex;">
+            <div style="width: 72px; height: 108px; margin-left: 0; border-radius: 4px; background: linear-gradient(160deg, #6d4630 0%, #2b1c15 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+            <div style="width: 72px; height: 108px; margin-left: -28px; border-radius: 4px; background: linear-gradient(160deg, #35696b 0%, #0a1a1c 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+            <div style="width: 72px; height: 108px; margin-left: -28px; border-radius: 4px; background: linear-gradient(160deg, #3c3f63 0%, #17182a 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+          </div>
+          <div style="position: relative; display: flex; flex-direction: column; gap: 6px;">
+            <div style="font-family: 'Archivo Black', Archivo, sans-serif; font-size: 30px; letter-spacing: -0.01em; color: #f6f4f0;">Drama</div>
+            <div style="font-size: 18px; color: rgba(246,244,240,0.52);">22 films</div>
+          </div>
+        </div>
+        <div style="position: relative; height: 220px; border-radius: 6px; background: rgba(246,244,240,0.05); border: 1px solid rgba(246,244,240,0.10); overflow: hidden; display: flex; align-items: flex-end; padding: 0 28px 26px 28px; box-sizing: border-box;">
+          <div style="position: absolute; right: 24px; top: 26px; display: flex;">
+            <div style="width: 72px; height: 108px; margin-left: 0; border-radius: 4px; background: linear-gradient(160deg, #5e5442 0%, #23201a 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+            <div style="width: 72px; height: 108px; margin-left: -28px; border-radius: 4px; background: linear-gradient(160deg, #2f4a35 0%, #121d16 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+            <div style="width: 72px; height: 108px; margin-left: -28px; border-radius: 4px; background: linear-gradient(160deg, #6a3540 0%, #24131a 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+          </div>
+          <div style="position: relative; display: flex; flex-direction: column; gap: 6px;">
+            <div style="font-family: 'Archivo Black', Archivo, sans-serif; font-size: 30px; letter-spacing: -0.01em; color: rgba(246,244,240,0.86);">Adventure</div>
+            <div style="font-size: 18px; color: rgba(246,244,240,0.52);">19 films</div>
+          </div>
+        </div>
+        <div style="position: relative; height: 220px; border-radius: 6px; background: rgba(246,244,240,0.05); border: 1px solid rgba(246,244,240,0.10); overflow: hidden; display: flex; align-items: flex-end; padding: 0 28px 26px 28px; box-sizing: border-box;">
+          <div style="position: absolute; right: 24px; top: 26px; display: flex;">
+            <div style="width: 72px; height: 108px; margin-left: 0; border-radius: 4px; background: linear-gradient(160deg, #2b4f66 0%, #0f1e28 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+            <div style="width: 72px; height: 108px; margin-left: -28px; border-radius: 4px; background: linear-gradient(160deg, #4a5c3a 0%, #1a2015 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+            <div style="width: 72px; height: 108px; margin-left: -28px; border-radius: 4px; background: linear-gradient(160deg, #4c4f75 0%, #191a28 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+          </div>
+          <div style="position: relative; display: flex; flex-direction: column; gap: 6px;">
+            <div style="font-family: 'Archivo Black', Archivo, sans-serif; font-size: 30px; letter-spacing: -0.01em; color: rgba(246,244,240,0.86);">Animation</div>
+            <div style="font-size: 18px; color: rgba(246,244,240,0.52);">11 films</div>
+          </div>
+        </div>
+        <div style="position: relative; height: 220px; border-radius: 6px; background: rgba(246,244,240,0.05); border: 1px solid rgba(246,244,240,0.10); overflow: hidden; display: flex; align-items: flex-end; padding: 0 28px 26px 28px; box-sizing: border-box;">
+          <div style="position: absolute; right: 24px; top: 26px; display: flex;">
+            <div style="width: 72px; height: 108px; margin-left: 0; border-radius: 4px; background: linear-gradient(160deg, #6b4a3a 0%, #241813 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+            <div style="width: 72px; height: 108px; margin-left: -28px; border-radius: 4px; background: linear-gradient(160deg, #3a5b57 0%, #14201f 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+            <div style="width: 72px; height: 108px; margin-left: -28px; border-radius: 4px; background: linear-gradient(160deg, #665038 0%, #221c14 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+          </div>
+          <div style="position: relative; display: flex; flex-direction: column; gap: 6px;">
+            <div style="font-family: 'Archivo Black', Archivo, sans-serif; font-size: 30px; letter-spacing: -0.01em; color: rgba(246,244,240,0.86);">Fantasy</div>
+            <div style="font-size: 18px; color: rgba(246,244,240,0.52);">11 films</div>
+          </div>
+        </div>
+        <div style="position: relative; height: 220px; border-radius: 6px; background: rgba(246,244,240,0.05); border: 1px solid rgba(246,244,240,0.10); overflow: hidden; display: flex; align-items: flex-end; padding: 0 28px 26px 28px; box-sizing: border-box;">
+          <div style="position: absolute; right: 24px; top: 26px; display: flex;">
+            <div style="width: 72px; height: 108px; margin-left: 0; border-radius: 4px; background: linear-gradient(160deg, #6d4630 0%, #2b1c15 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+            <div style="width: 72px; height: 108px; margin-left: -28px; border-radius: 4px; background: linear-gradient(160deg, #35696b 0%, #0a1a1c 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+            <div style="width: 72px; height: 108px; margin-left: -28px; border-radius: 4px; background: linear-gradient(160deg, #3c3f63 0%, #17182a 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+          </div>
+          <div style="position: relative; display: flex; flex-direction: column; gap: 6px;">
+            <div style="font-family: 'Archivo Black', Archivo, sans-serif; font-size: 30px; letter-spacing: -0.01em; color: rgba(246,244,240,0.86);">Action</div>
+            <div style="font-size: 18px; color: rgba(246,244,240,0.52);">11 films</div>
+          </div>
+        </div>
+        <div style="position: relative; height: 220px; border-radius: 6px; background: rgba(246,244,240,0.05); border: 1px solid rgba(246,244,240,0.10); overflow: hidden; display: flex; align-items: flex-end; padding: 0 28px 26px 28px; box-sizing: border-box;">
+          <div style="position: absolute; right: 24px; top: 26px; display: flex;">
+            <div style="width: 72px; height: 108px; margin-left: 0; border-radius: 4px; background: linear-gradient(160deg, #5e5442 0%, #23201a 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+            <div style="width: 72px; height: 108px; margin-left: -28px; border-radius: 4px; background: linear-gradient(160deg, #2f4a35 0%, #121d16 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+            <div style="width: 72px; height: 108px; margin-left: -28px; border-radius: 4px; background: linear-gradient(160deg, #6a3540 0%, #24131a 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+          </div>
+          <div style="position: relative; display: flex; flex-direction: column; gap: 6px;">
+            <div style="font-family: 'Archivo Black', Archivo, sans-serif; font-size: 30px; letter-spacing: -0.01em; color: rgba(246,244,240,0.86);">Science Fiction</div>
+            <div style="font-size: 18px; color: rgba(246,244,240,0.52);">9 films</div>
+          </div>
+        </div>
+        <div style="position: relative; height: 220px; border-radius: 6px; background: rgba(246,244,240,0.05); border: 1px solid rgba(246,244,240,0.10); overflow: hidden; display: flex; align-items: flex-end; padding: 0 28px 26px 28px; box-sizing: border-box;">
+          <div style="position: absolute; right: 24px; top: 26px; display: flex;">
+            <div style="width: 72px; height: 108px; margin-left: 0; border-radius: 4px; background: linear-gradient(160deg, #2b4f66 0%, #0f1e28 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+            <div style="width: 72px; height: 108px; margin-left: -28px; border-radius: 4px; background: linear-gradient(160deg, #4a5c3a 0%, #1a2015 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+            <div style="width: 72px; height: 108px; margin-left: -28px; border-radius: 4px; background: linear-gradient(160deg, #4c4f75 0%, #191a28 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+          </div>
+          <div style="position: relative; display: flex; flex-direction: column; gap: 6px;">
+            <div style="font-family: 'Archivo Black', Archivo, sans-serif; font-size: 30px; letter-spacing: -0.01em; color: rgba(246,244,240,0.86);">Comedy</div>
+            <div style="font-size: 18px; color: rgba(246,244,240,0.52);">8 films</div>
+          </div>
+        </div>
+        <div style="position: relative; height: 220px; border-radius: 6px; background: rgba(246,244,240,0.05); border: 1px solid rgba(246,244,240,0.10); overflow: hidden; display: flex; align-items: flex-end; padding: 0 28px 26px 28px; box-sizing: border-box;">
+          <div style="position: absolute; right: 24px; top: 26px; display: flex;">
+            <div style="width: 72px; height: 108px; margin-left: 0; border-radius: 4px; background: linear-gradient(160deg, #6b4a3a 0%, #241813 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+            <div style="width: 72px; height: 108px; margin-left: -28px; border-radius: 4px; background: linear-gradient(160deg, #3a5b57 0%, #14201f 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+            <div style="width: 72px; height: 108px; margin-left: -28px; border-radius: 4px; background: linear-gradient(160deg, #665038 0%, #221c14 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+          </div>
+          <div style="position: relative; display: flex; flex-direction: column; gap: 6px;">
+            <div style="font-family: 'Archivo Black', Archivo, sans-serif; font-size: 30px; letter-spacing: -0.01em; color: rgba(246,244,240,0.86);">Family</div>
+            <div style="font-size: 18px; color: rgba(246,244,240,0.52);">8 films</div>
+          </div>
+        </div>
+        <div style="position: relative; height: 220px; border-radius: 6px; background: rgba(246,244,240,0.05); border: 1px solid rgba(246,244,240,0.10); overflow: hidden; display: flex; align-items: flex-end; padding: 0 28px 26px 28px; box-sizing: border-box;">
+          <div style="position: absolute; right: 24px; top: 26px; display: flex;">
+            <div style="width: 72px; height: 108px; margin-left: 0; border-radius: 4px; background: linear-gradient(160deg, #6d4630 0%, #2b1c15 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+            <div style="width: 72px; height: 108px; margin-left: -28px; border-radius: 4px; background: linear-gradient(160deg, #35696b 0%, #0a1a1c 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+            <div style="width: 72px; height: 108px; margin-left: -28px; border-radius: 4px; background: linear-gradient(160deg, #3c3f63 0%, #17182a 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+          </div>
+          <div style="position: relative; display: flex; flex-direction: column; gap: 6px;">
+            <div style="font-family: 'Archivo Black', Archivo, sans-serif; font-size: 30px; letter-spacing: -0.01em; color: rgba(246,244,240,0.86);">Thriller</div>
+            <div style="font-size: 18px; color: rgba(246,244,240,0.52);">6 films</div>
+          </div>
+        </div>
+        <div style="position: relative; height: 220px; border-radius: 6px; background: rgba(246,244,240,0.05); border: 1px solid rgba(246,244,240,0.10); overflow: hidden; display: flex; align-items: flex-end; padding: 0 28px 26px 28px; box-sizing: border-box;">
+          <div style="position: absolute; right: 24px; top: 26px; display: flex;">
+            <div style="width: 72px; height: 108px; margin-left: 0; border-radius: 4px; background: linear-gradient(160deg, #5e5442 0%, #23201a 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+            <div style="width: 72px; height: 108px; margin-left: -28px; border-radius: 4px; background: linear-gradient(160deg, #2f4a35 0%, #121d16 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+            <div style="width: 72px; height: 108px; margin-left: -28px; border-radius: 4px; background: linear-gradient(160deg, #6a3540 0%, #24131a 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+          </div>
+          <div style="position: relative; display: flex; flex-direction: column; gap: 6px;">
+            <div style="font-family: 'Archivo Black', Archivo, sans-serif; font-size: 30px; letter-spacing: -0.01em; color: rgba(246,244,240,0.86);">History</div>
+            <div style="font-size: 18px; color: rgba(246,244,240,0.52);">5 films</div>
+          </div>
+        </div>
+        <div style="position: relative; height: 220px; border-radius: 6px; background: rgba(246,244,240,0.05); border: 1px solid rgba(246,244,240,0.10); overflow: hidden; display: flex; align-items: flex-end; padding: 0 28px 26px 28px; box-sizing: border-box;">
+          <div style="position: absolute; right: 24px; top: 26px; display: flex;">
+            <div style="width: 72px; height: 108px; margin-left: 0; border-radius: 4px; background: linear-gradient(160deg, #2b4f66 0%, #0f1e28 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+            <div style="width: 72px; height: 108px; margin-left: -28px; border-radius: 4px; background: linear-gradient(160deg, #4a5c3a 0%, #1a2015 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+            <div style="width: 72px; height: 108px; margin-left: -28px; border-radius: 4px; background: linear-gradient(160deg, #4c4f75 0%, #191a28 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+          </div>
+          <div style="position: relative; display: flex; flex-direction: column; gap: 6px;">
+            <div style="font-family: 'Archivo Black', Archivo, sans-serif; font-size: 30px; letter-spacing: -0.01em; color: rgba(246,244,240,0.86);">Music</div>
+            <div style="font-size: 18px; color: rgba(246,244,240,0.52);">5 films</div>
+          </div>
+        </div>
+        <div style="position: relative; height: 220px; border-radius: 6px; background: rgba(246,244,240,0.05); border: 1px solid rgba(246,244,240,0.10); overflow: hidden; display: flex; align-items: flex-end; padding: 0 28px 26px 28px; box-sizing: border-box;">
+          <div style="position: absolute; right: 24px; top: 26px; display: flex;">
+            <div style="width: 72px; height: 108px; margin-left: 0; border-radius: 4px; background: linear-gradient(160deg, #6b4a3a 0%, #241813 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+            <div style="width: 72px; height: 108px; margin-left: -28px; border-radius: 4px; background: linear-gradient(160deg, #3a5b57 0%, #14201f 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+            <div style="width: 72px; height: 108px; margin-left: -28px; border-radius: 4px; background: linear-gradient(160deg, #665038 0%, #221c14 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+          </div>
+          <div style="position: relative; display: flex; flex-direction: column; gap: 6px;">
+            <div style="font-family: 'Archivo Black', Archivo, sans-serif; font-size: 30px; letter-spacing: -0.01em; color: rgba(246,244,240,0.86);">Romance</div>
+            <div style="font-size: 18px; color: rgba(246,244,240,0.52);">5 films</div>
+          </div>
+        </div>
+        <div style="position: relative; height: 220px; border-radius: 6px; background: rgba(246,244,240,0.05); border: 1px solid rgba(246,244,240,0.10); overflow: hidden; display: flex; align-items: flex-end; padding: 0 28px 26px 28px; box-sizing: border-box;">
+          <div style="position: absolute; right: 24px; top: 26px; display: flex;">
+            <div style="width: 72px; height: 108px; margin-left: 0; border-radius: 4px; background: linear-gradient(160deg, #6d4630 0%, #2b1c15 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+            <div style="width: 72px; height: 108px; margin-left: -28px; border-radius: 4px; background: linear-gradient(160deg, #35696b 0%, #0a1a1c 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+            <div style="width: 72px; height: 108px; margin-left: -28px; border-radius: 4px; background: linear-gradient(160deg, #3c3f63 0%, #17182a 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+          </div>
+          <div style="position: relative; display: flex; flex-direction: column; gap: 6px;">
+            <div style="font-family: 'Archivo Black', Archivo, sans-serif; font-size: 30px; letter-spacing: -0.01em; color: rgba(246,244,240,0.86);">Horror</div>
+            <div style="font-size: 18px; color: rgba(246,244,240,0.52);">3 films</div>
+          </div>
+        </div>
+        <div style="position: relative; height: 220px; border-radius: 6px; background: rgba(246,244,240,0.05); border: 1px solid rgba(246,244,240,0.10); overflow: hidden; display: flex; align-items: flex-end; padding: 0 28px 26px 28px; box-sizing: border-box;">
+          <div style="position: absolute; right: 24px; top: 26px; display: flex;">
+            <div style="width: 72px; height: 108px; margin-left: 0; border-radius: 4px; background: linear-gradient(160deg, #5e5442 0%, #23201a 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+            <div style="width: 72px; height: 108px; margin-left: -28px; border-radius: 4px; background: linear-gradient(160deg, #2f4a35 0%, #121d16 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+            <div style="width: 72px; height: 108px; margin-left: -28px; border-radius: 4px; background: linear-gradient(160deg, #6a3540 0%, #24131a 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+          </div>
+          <div style="position: relative; display: flex; flex-direction: column; gap: 6px;">
+            <div style="font-family: 'Archivo Black', Archivo, sans-serif; font-size: 30px; letter-spacing: -0.01em; color: rgba(246,244,240,0.86);">War</div>
+            <div style="font-size: 18px; color: rgba(246,244,240,0.52);">3 films</div>
+          </div>
+        </div>
+        <div style="position: relative; height: 220px; border-radius: 6px; background: rgba(246,244,240,0.05); border: 1px solid rgba(246,244,240,0.10); overflow: hidden; display: flex; align-items: flex-end; padding: 0 28px 26px 28px; box-sizing: border-box;">
+          <div style="position: absolute; right: 24px; top: 26px; display: flex;">
+            <div style="width: 72px; height: 108px; margin-left: 0; border-radius: 4px; background: linear-gradient(160deg, #2b4f66 0%, #0f1e28 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+            <div style="width: 72px; height: 108px; margin-left: -28px; border-radius: 4px; background: linear-gradient(160deg, #4a5c3a 0%, #1a2015 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+            <div style="width: 72px; height: 108px; margin-left: -28px; border-radius: 4px; background: linear-gradient(160deg, #4c4f75 0%, #191a28 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+          </div>
+          <div style="position: relative; display: flex; flex-direction: column; gap: 6px;">
+            <div style="font-family: 'Archivo Black', Archivo, sans-serif; font-size: 30px; letter-spacing: -0.01em; color: rgba(246,244,240,0.86);">Crime</div>
+            <div style="font-size: 18px; color: rgba(246,244,240,0.52);">2 films</div>
+          </div>
+        </div>
+        <div style="position: relative; height: 220px; border-radius: 6px; background: rgba(246,244,240,0.05); border: 1px solid rgba(246,244,240,0.10); overflow: hidden; display: flex; align-items: flex-end; padding: 0 28px 26px 28px; box-sizing: border-box;">
+          <div style="position: absolute; right: 24px; top: 26px; display: flex;">
+            <div style="width: 72px; height: 108px; margin-left: 0; border-radius: 4px; background: linear-gradient(160deg, #6b4a3a 0%, #241813 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+            <div style="width: 72px; height: 108px; margin-left: -28px; border-radius: 4px; background: linear-gradient(160deg, #3a5b57 0%, #14201f 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+            <div style="width: 72px; height: 108px; margin-left: -28px; border-radius: 4px; background: linear-gradient(160deg, #665038 0%, #221c14 100%); box-shadow: -6px 0 14px rgba(0,0,0,0.5);"></div>
+          </div>
+          <div style="position: relative; display: flex; flex-direction: column; gap: 6px;">
+            <div style="font-family: 'Archivo Black', Archivo, sans-serif; font-size: 30px; letter-spacing: -0.01em; color: rgba(246,244,240,0.86);">Mystery</div>
+            <div style="font-size: 18px; color: rgba(246,244,240,0.52);">1 film</div>
+          </div>
+        </div>
+    </div>
+  </div>
+
+  <div style="position: absolute; left: 0; right: 0; bottom: 0; height: 172px; background: linear-gradient(0deg, rgba(6,6,8,0.98) 0%, rgba(6,6,8,0.86) 48%, rgba(6,6,8,0.00) 100%);"></div>
+  <div style="position: absolute; left: 80px; right: 80px; bottom: 46px; display: flex; justify-content: space-between; align-items: center;">
+    <div style="display: flex; align-items: baseline; gap: 18px;">
+      <div style="font-size: 30px; font-weight: 600; color: #f6f4f0;">Drama</div>
+      <div style="font-size: 20px; color: rgba(246,244,240,0.52);">Amadeus, Django Unchained, Gladiator and 19 more</div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 30px;">
+      <div style="display: flex; align-items: center; gap: 13px;">
+        <span style="width: 42px; height: 42px; border-radius: 50%; border: 2px solid #e8b04b; color: #e8b04b; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 600; letter-spacing: 0.06em;">OK</span>
+        <span style="font-size: 20px; color: #f6f4f0;">Open</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 13px;">
+        <span style="width: 42px; height: 42px; border-radius: 50%; border: 2px solid rgba(246,244,240,0.34); display: flex; align-items: center; justify-content: center;">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="rgba(246,244,240,0.72)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m14.6 5.4-6.8 6.6 6.8 6.6"></path></svg>
+        </span>
+        <span style="font-size: 20px; color: rgba(246,244,240,0.62);">Films</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

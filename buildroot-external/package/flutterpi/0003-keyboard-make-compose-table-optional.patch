@@ -1,0 +1,86 @@
+Do not lose the whole keyboard when there is no compose table
+
+On a minimal image with no X11 locale data,
+xkb_compose_table_new_from_locale fails for locale "C" and flutter-pi
+then gives up on keyboard input entirely - so a TV UI driven by a d-pad
+becomes unreachable.
+
+Compose sequences are a text-entry feature; treat their absence as a
+degradation rather than a fatal error.
+
+Signed-off-by: Mira <noreply@anthropic.com>
+
+--- a/src/keyboard.c
++++ b/src/keyboard.c
+@@ -236,9 +236,15 @@
+         goto fail_free_cfg;
+     }
+ 
++    /*
++     * Compose sequences are a text-entry nicety. Losing them must not cost the
++     * whole keyboard: on a minimal image there is often no X11 locale data, so
++     * xkb_compose_table_new_from_locale fails for locale "C" and the box ends
++     * up with no arrow keys at all - which on a TV means nothing is reachable.
++     */
+     compose_table = load_default_compose_table(ctx);
+     if (compose_table == NULL) {
+-        goto fail_free_context;
++        LOG_ERROR("Continuing without compose support; keys still work.\n");
+     }
+ 
+     keymap = load_default_keymap(ctx);
+@@ -296,13 +302,16 @@
+         goto fail_free_xkb_state;
+     }
+ 
+-    compose_state = xkb_compose_state_new(
+-        compose_table_override != NULL ? compose_table_override : config->default_compose_table,
+-        XKB_COMPOSE_STATE_NO_FLAGS
+-    );
+-    if (compose_state == NULL) {
+-        LOG_ERROR("Could not create new XKB compose state.\n");
+-        goto fail_free_plain_xkb_state;
++    struct xkb_compose_table *table =
++        compose_table_override != NULL ? compose_table_override : config->default_compose_table;
++    if (table != NULL) {
++        compose_state = xkb_compose_state_new(table, XKB_COMPOSE_STATE_NO_FLAGS);
++        if (compose_state == NULL) {
++            LOG_ERROR("Could not create new XKB compose state.\n");
++            goto fail_free_plain_xkb_state;
++        }
++    } else {
++        compose_state = NULL;
+     }
+ 
+     state->config = config;
+@@ -358,17 +367,19 @@
+     if (evdev_value) {
+         keysym = xkb_state_key_get_one_sym(state->state, xkb_keycode);
+ 
+-        feed_result = xkb_compose_state_feed(state->compose_state, keysym);
+-        compose_status = xkb_compose_state_get_status(state->compose_state);
+-        if (feed_result == XKB_COMPOSE_FEED_ACCEPTED && compose_status == XKB_COMPOSE_COMPOSING) {
+-            keysym = XKB_KEY_NoSymbol;
+-        }
+-
+-        if (compose_status == XKB_COMPOSE_COMPOSED) {
+-            keysym = xkb_compose_state_get_one_sym(state->compose_state);
+-            xkb_compose_state_reset(state->compose_state);
+-        } else if (compose_status == XKB_COMPOSE_CANCELLED) {
+-            xkb_compose_state_reset(state->compose_state);
++        if (state->compose_state != NULL) {
++            feed_result = xkb_compose_state_feed(state->compose_state, keysym);
++            compose_status = xkb_compose_state_get_status(state->compose_state);
++            if (feed_result == XKB_COMPOSE_FEED_ACCEPTED && compose_status == XKB_COMPOSE_COMPOSING) {
++                keysym = XKB_KEY_NoSymbol;
++            }
++
++            if (compose_status == XKB_COMPOSE_COMPOSED) {
++                keysym = xkb_compose_state_get_one_sym(state->compose_state);
++                xkb_compose_state_reset(state->compose_state);
++            } else if (compose_status == XKB_COMPOSE_CANCELLED) {
++                xkb_compose_state_reset(state->compose_state);
++            }
+         }
+ 
+         codepoint = xkb_state_key_get_utf32(state->state, xkb_keycode);

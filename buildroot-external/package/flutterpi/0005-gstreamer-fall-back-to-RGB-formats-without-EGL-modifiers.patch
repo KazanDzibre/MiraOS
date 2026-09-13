@@ -1,0 +1,44 @@
+Offer RGB formats when EGL reports none for dma-buf import
+
+The video appsink only accepts formats listed by
+eglQueryDmaBufFormatsEXT, which flutter-pi only calls when EGL has
+EGL_EXT_image_dma_buf_import_modifiers. Without that extension (virgl in
+QEMU, among others) the list is empty, the appsink caps are EMPTY, no
+decoder pad can link, and playback hangs forever.
+
+Plain EGL_EXT_image_dma_buf_import is still required and still used, and
+software-decoded frames are copied into a single-plane LINEAR GBM buffer
+anyway, so offer the four 8-bit RGB formats in that case. A videoconvert
+upstream of the appsink produces them. When EGL does report formats,
+nothing changes.
+
+Signed-off-by: Mira <noreply@anthropic.com>
+
+--- a/src/plugins/gstreamer_video_player/frame.c
++++ b/src/plugins/gstreamer_video_player/frame.c
+@@ -285,6 +285,25 @@
+         formats = NULL;
+     }
+
++    if (n_formats == 0) {
++        // Mira: without EGL_EXT_image_dma_buf_import_modifiers (virgl, among
++        // others) EGL reports no formats, the appsink caps end up empty, and no
++        // video can ever link. Plain EGL_EXT_image_dma_buf_import still works
++        // for single-plane RGB in a LINEAR GBM buffer, which is exactly what
++        // software-decoded frames are copied into - so offer those.
++        static const uint32_t fallback[] = { DRM_FORMAT_XRGB8888, DRM_FORMAT_ARGB8888, DRM_FORMAT_XBGR8888, DRM_FORMAT_ABGR8888 };
++        formats = malloc(ARRAY_SIZE(fallback) * sizeof *formats);
++        if (formats != NULL) {
++            for (size_t i = 0; i < ARRAY_SIZE(fallback); i++) {
++                formats[i].format = fallback[i];
++                formats[i].modifier = DRM_FORMAT_MOD_LINEAR;
++                formats[i].external_only = false;
++            }
++            n_formats = ARRAY_SIZE(fallback);
++            fprintf(stderr, "[gstreamer video player] EGL reported no importable formats; using %d RGB fallback formats\n", n_formats);
++        }
++    }
++
+     interface->gbm_device = gbm_device;
+     interface->display = display;
+     pthread_mutex_init(&interface->context_lock, NULL);

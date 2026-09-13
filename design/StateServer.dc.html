@@ -1,0 +1,68 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=Archivo+Black&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: #e8b04b; } a:hover { color: #f5cd80; }
+  </style>
+</helmet>
+
+<div style="width: 1920px; height: 1080px; position: relative; overflow: hidden; background: #08080a; font-family: Archivo, system-ui, sans-serif; color: #f6f4f0;">
+
+  <div style="position: absolute; inset: 0; background: radial-gradient(80% 68% at 50% 34%, rgba(217,96,63,0.10) 0%, rgba(0,0,0,0) 62%);"></div>
+
+  <div style="position: absolute; inset: 0; padding: 72px 80px; box-sizing: border-box; display: flex; flex-direction: column;">
+
+    <div style="display: flex; align-items: center; gap: 14px;">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#e8b04b" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.2 13.9 9.4 20.2 9.6 15.2 13.4 17 19.7 12 15.8 7 19.7 8.8 13.4 3.8 9.6 10.1 9.4Z"></path></svg>
+      <div style="font-family: 'Archivo Black', Archivo, sans-serif; font-size: 22px; letter-spacing: 0.34em;">MIRA</div>
+    </div>
+
+    <div style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 34px;">
+
+      <div style="width: 136px; height: 136px; border-radius: 50%; border: 2px solid rgba(217,96,63,0.42); background: rgba(217,96,63,0.10); display: flex; align-items: center; justify-content: center;">
+        <svg width="58" height="58" viewBox="0 0 24 24" fill="none" stroke="#d9603f" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3.2" y="4.2" width="17.6" height="6" rx="1.6"></rect><rect x="3.2" y="13.8" width="17.6" height="6" rx="1.6"></rect><path d="M6.8 7.2h.01M6.8 16.8h.01"></path><path d="m4.4 3.2 15.2 17.6"></path></svg>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 20px;">
+        <div style="font-family: 'Archivo Black', Archivo, sans-serif; font-size: 62px; line-height: 1.02; letter-spacing: -0.02em; text-align: center;">Your server is not answering</div>
+        <div style="font-size: 24px; line-height: 1.5; color: rgba(246,244,240,0.72); text-align: center; max-width: 780px; text-wrap: pretty;">The tunnel is up, so this is Jellyfin itself &mdash; it may be off, restarting, or listening on a different port.</div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; width: 760px; border-radius: 8px; background: rgba(246,244,240,0.06); border: 1px solid rgba(246,244,240,0.10); overflow: hidden;">
+        <div style="display: flex; align-items: center; gap: 16px; padding: 20px 28px; border-bottom: 1px solid rgba(246,244,240,0.09);">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#6fcf8a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5.4 12.4 4.2 4.2 9-9.4"></path></svg>
+          <div style="font-size: 21px; color: rgba(246,244,240,0.52); width: 150px;">NetBird</div>
+          <div style="font-size: 21px; color: #6fcf8a;">connected &middot; 100.84.0.6</div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 16px; padding: 20px 28px; ">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#d9603f" stroke-width="2.2" stroke-linecap="round"><path d="M6.4 6.4 17.6 17.6M17.6 6.4 6.4 17.6"></path></svg>
+          <div style="font-size: 21px; color: rgba(246,244,240,0.52); width: 150px;">Jellyfin</div>
+          <div style="font-size: 21px; color: #d9603f;">no response from jellyfin.homelab:8096</div>
+        </div>
+      </div>
+
+
+      <div style="display: flex; align-items: center; gap: 18px; padding-top: 8px;">
+        <div style="height: 68px; display: flex; align-items: center; gap: 14px; padding: 0 34px; border-radius: 6px; background: #f6f4f0; color: #0b0b0d; font-size: 21px; font-weight: 600; box-shadow: 0 0 0 4px #e8b04b, 0 0 0 10px rgba(232,176,75,0.22);">Retry now</div>
+        <div style="height: 68px; display: flex; align-items: center; padding: 0 30px; border-radius: 6px; border: 2px solid rgba(246,244,240,0.32); font-size: 21px; color: rgba(246,244,240,0.90);">Change server</div>
+      </div>
+
+    </div>
+
+    <div style="display: flex; justify-content: center;">
+      <div style="font-size: 17px; letter-spacing: 0.06em; color: rgba(246,244,240,0.34);">connection refused after 5 s &middot; 3 attempts since 20:58</div>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

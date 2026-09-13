@@ -1,0 +1,135 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=Archivo+Black&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: #e8b04b; } a:hover { color: #f5cd80; }
+  </style>
+</helmet>
+
+<div style="width: 1920px; height: 1080px; position: relative; overflow: hidden; background: #08080a; font-family: Archivo, system-ui, sans-serif; color: #f6f4f0;">
+
+  <div style="position: absolute; inset: 0; background: radial-gradient(110% 80% at 24% 12%, #22454a 0%, #14262a 34%, #0a1114 66%, #08080a 100%);"></div>
+  <div style="position: absolute; inset: 0; background: linear-gradient(180deg, rgba(6,6,8,0.72) 0%, rgba(6,6,8,0.90) 38%, rgba(6,6,8,0.97) 100%);"></div>
+
+  <div style="position: absolute; inset: 0; padding: 72px 80px 0 80px; box-sizing: border-box; display: flex; flex-direction: column; gap: 40px;">
+
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <div style="display: flex; align-items: center; gap: 48px;">
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#e8b04b" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.2 13.9 9.4 20.2 9.6 15.2 13.4 17 19.7 12 15.8 7 19.7 8.8 13.4 3.8 9.6 10.1 9.4Z"></path></svg>
+          <div style="font-family: 'Archivo Black', Archivo, sans-serif; font-size: 22px; letter-spacing: 0.34em; color: #f6f4f0;">MIRA</div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 36px; font-size: 21px;">
+          <span style="color: rgba(246,244,240,0.46);">Home</span>
+          <span style="color: rgba(246,244,240,0.46);">Discover</span>
+          <div style="display: flex; flex-direction: column; gap: 9px; align-items: center;">
+            <span style="color: #f6f4f0; font-weight: 600;">Films</span>
+            <span style="width: 100%; height: 3px; background: #e8b04b;"></span>
+          </div>
+          <span style="color: rgba(246,244,240,0.46);">Shows</span>
+          <span style="color: rgba(246,244,240,0.46);">Settings</span>
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 26px; font-size: 18px; color: rgba(246,244,240,0.62);">
+        <div style="display: flex; align-items: center; gap: 9px;">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#6fcf8a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 20 6v5.4c0 5-3.4 8.6-8 9.8-4.6-1.2-8-4.8-8-9.8V6Z"></path><path d="m8.9 12.1 2.1 2.1 4.1-4.3"></path></svg>
+          <span style="letter-spacing: 0.06em;">homelab</span>
+        </div>
+        <div style="font-variant-numeric: tabular-nums;">21:04</div>
+      </div>
+    </div>
+
+    <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+      <div style="display: flex; align-items: baseline; gap: 22px;">
+        <div style="font-family: 'Archivo Black', Archivo, sans-serif; font-size: 56px; letter-spacing: -0.015em;">Films</div>
+        <div style="font-size: 20px; color: rgba(246,244,240,0.46);">218 titles</div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <div style="height: 68px; display: flex; align-items: center; padding: 0 30px; border-radius: 6px; background: rgba(246,244,240,0.10); border: 1px solid rgba(246,244,240,0.18); font-size: 19px;">All</div>
+        <div style="height: 68px; display: flex; align-items: center; padding: 0 30px; border-radius: 6px; font-size: 19px; color: rgba(246,244,240,0.52);">Unwatched</div>
+        <div style="height: 68px; display: flex; align-items: center; padding: 0 30px; border-radius: 6px; font-size: 19px; color: rgba(246,244,240,0.52);">Recently added</div>
+        <div style="height: 68px; width: 68px; display: flex; align-items: center; justify-content: center; border-radius: 6px; border: 1px solid rgba(246,244,240,0.18);">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(246,244,240,0.72)" stroke-width="1.9" stroke-linecap="round"><circle cx="10.8" cy="10.8" r="6.6"></circle><path d="m15.6 15.6 4.4 4.4"></path></svg>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 32px;">
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="width: 100%; height: 399px; border-radius: 5px; background: linear-gradient(160deg, #6d4630 0%, #2b1c15 100%); border: 1px solid rgba(255,255,255,0.07);"></div>
+        <div style="font-size: 18px; color: rgba(246,244,240,0.52);">Ashfall</div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="position: relative; width: 100%; height: 399px; border-radius: 6px; background: linear-gradient(160deg, #35696b 0%, #123033 62%, #0a1a1c 100%); box-shadow: 0 0 0 4px #e8b04b, 0 0 0 10px rgba(232,176,75,0.22), 0 18px 46px rgba(0,0,0,0.66);"></div>
+        <div style="display: flex; flex-direction: column; gap: 3px;">
+          <div style="font-size: 20px; font-weight: 600; color: #f6f4f0;">The Salt Road</div>
+          <div style="font-size: 17px; color: #e8b04b;">2024 &middot; HEVC 4K</div>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="width: 100%; height: 399px; border-radius: 5px; background: linear-gradient(160deg, #3c3f63 0%, #17182a 100%); border: 1px solid rgba(255,255,255,0.07);"></div>
+        <div style="font-size: 18px; color: rgba(246,244,240,0.52);">Nightjar</div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="width: 100%; height: 399px; border-radius: 5px; background: linear-gradient(160deg, #5e5442 0%, #23201a 100%); border: 1px solid rgba(255,255,255,0.07);"></div>
+        <div style="font-size: 18px; color: rgba(246,244,240,0.52);">Quiet Coast</div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="width: 100%; height: 399px; border-radius: 5px; background: linear-gradient(160deg, #2f4a35 0%, #121d16 100%); border: 1px solid rgba(255,255,255,0.07);"></div>
+        <div style="font-size: 18px; color: rgba(246,244,240,0.52);">Meridian</div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="width: 100%; height: 399px; border-radius: 5px; background: linear-gradient(160deg, #6a3540 0%, #24131a 100%); border: 1px solid rgba(255,255,255,0.07);"></div>
+        <div style="font-size: 18px; color: rgba(246,244,240,0.52);">Low Tide</div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="width: 100%; height: 399px; border-radius: 5px; background: linear-gradient(160deg, #2b4f66 0%, #0f1e28 100%); border: 1px solid rgba(255,255,255,0.07);"></div>
+        <div style="font-size: 18px; color: rgba(246,244,240,0.52);">Ferrous</div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="width: 100%; height: 399px; border-radius: 5px; background: linear-gradient(160deg, #4a5c3a 0%, #1a2015 100%); border: 1px solid rgba(255,255,255,0.07);"></div>
+        <div style="font-size: 18px; color: rgba(246,244,240,0.52);">Hollow Point</div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="width: 100%; height: 399px; border-radius: 5px; background: linear-gradient(160deg, #4c4f75 0%, #191a28 100%); border: 1px solid rgba(255,255,255,0.07);"></div>
+        <div style="font-size: 18px; color: rgba(246,244,240,0.52);">Cassini</div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="width: 100%; height: 399px; border-radius: 5px; background: linear-gradient(160deg, #6b4a3a 0%, #241813 100%); border: 1px solid rgba(255,255,255,0.07);"></div>
+        <div style="font-size: 18px; color: rgba(246,244,240,0.52);">The Long Winter</div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="width: 100%; height: 399px; border-radius: 5px; background: linear-gradient(160deg, #3a5b57 0%, #14201f 100%); border: 1px solid rgba(255,255,255,0.07);"></div>
+        <div style="font-size: 18px; color: rgba(246,244,240,0.52);">Drift</div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="width: 100%; height: 399px; border-radius: 5px; background: linear-gradient(160deg, #665038 0%, #221c14 100%); border: 1px solid rgba(255,255,255,0.07);"></div>
+        <div style="font-size: 18px; color: rgba(246,244,240,0.52);">Pale Harbour</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
