@@ -509,7 +509,32 @@ room. Deliberate, keep them:
   entry verified to still show the full kernel and service output.
 - Distro skeleton builds and is config-verified; `mirad` written and compiling.
 - `mira_rpi4_defconfig` **not yet written** — VM target came first for iteration
-  speed.
+  speed. **It is the next session's work** (agreed 2026-09-14); plan below.
+
+  **Plan: the rpi4 target.** Everything above the kernel is shared (shell,
+  flutter-pi + patches, sd-event shim, netbird, audio init, dev config), so
+  this is a second defconfig, not a port.
+  1. *Boots and browses* (about a session): `mira_rpi4_defconfig` (aarch64,
+     glibc, Pi firmware + raspberrypi kernel, `config.txt`), aarch64
+     `flutter-engine-bin`, mesa v3d/vc4, CA certs, xkeyboard-config,
+     `S15mira-audio` for HDMI, netbird (Go cross-compiles), and an SD image
+     via genimage. **One plain rootfs partition first** - A/B, tryboot and the
+     read-only root come later. Goal: Pi boots to Home, shows the library,
+     NetBird sign-in works.
+  2. *Hardware playback* (the real unknown): replace `uridecodebin` with
+     pinned `v4l2slh265dec` / `v4l2h264dec`, confirm zero-copy DMA-BUF into
+     flutter-pi and measure CPU (a pegged core = software fallback). Patches
+     0005/0006 should be inert there - verify. Reassurance from the user: the
+     same Pi played 1080p well in Chromium kiosk with jellyfin-web, which was
+     almost certainly H.264 hardware decode with HEVC transcoded by the
+     server. **Fallback if HEVC direct play misbehaves:** drop HEVC from the
+     DeviceProfile so the server transcodes to H.264 - the Chromium setup,
+     minus the browser.
+  3. *Later*: A/B + tryboot + read-only root, CEC (`mira-inputd`), 4K mode
+     switching, first-run enrolment. A USB/2.4 GHz remote that acts as a
+     keyboard works meanwhile.
+  Testing needs the user to flash the SD card; a USB-serial adapter on the
+  Pi's UART makes boot debugging far faster than reported symptoms.
 - **Mira Shell exists and renders.** Flutter **3.47.4** pinned under
   `.toolchain/` by `scripts/setup-flutter.sh` (version + sha256 together).
   `flutter analyze` is clean and `flutter test` passes, including goldens
