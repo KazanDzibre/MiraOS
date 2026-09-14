@@ -60,9 +60,16 @@ class _TracksSheetState extends State<TracksSheet> {
     _search(_language);
   }
 
+  /// OK on a track applies it, remembers it for this film and closes the
+  /// sheet - one press, no separate confirm.
   void _choose(TrackChoice choice) {
     setState(() => _choice = choice);
     widget.onChanged(choice, _item);
+    widget.source.saveTracks(_item, choice).catchError((Object e) {
+      // The track still applies for this viewing; only the memory is lost.
+      debugPrint('mira: could not save track choice for ${_item.name}: $e');
+    });
+    Navigator.maybeOf(context)?.maybePop();
   }
 
   Future<void> _search(String language) async {
@@ -461,9 +468,9 @@ class _Hints extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
+      // No "OK Choose" hint: OK on a track applies it and closes the sheet, so
+      // there is nothing to confirm.
       children: <Widget>[
-        _hint('OK', 'Choose', MiraColors.accent),
-        const SizedBox(width: 30),
         _hint('BACK', 'Close', MiraColors.textFaint),
       ],
     );

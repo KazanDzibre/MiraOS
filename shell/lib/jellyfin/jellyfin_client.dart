@@ -464,6 +464,40 @@ class JellyfinClient {
     );
   }
 
+  /// This client's settings for one film, kept by the server in the user's
+  /// display preferences. On the server rather than on the box: they survive a
+  /// reflash, and the VM, which runs from RAM, keeps them across reboots.
+  Uri _prefsUri(MediaItem item) => _uri('/DisplayPreferences/${item.id}',
+      <String, String>{'userId': _userId!, 'client': 'mira'});
+
+  Future<Map<String, String>> itemPrefs(MediaItem item) async {
+    _requireSession();
+    final Object? custom = _asMap(await _send('GET', _prefsUri(item)))['CustomPrefs'];
+    if (custom is! Map) return const <String, String>{};
+    return <String, String>{
+      for (final MapEntry<Object?, Object?> e in custom.entries)
+        if (e.key is String && e.value is String) e.key! as String: e.value! as String,
+    };
+  }
+
+  /// Merges [prefs] into the film's stored ones. The endpoint takes the whole
+  /// preferences object, so the rest of what the server sent goes back as-is.
+  Future<void> setItemPrefs(MediaItem item, Map<String, String> prefs) async {
+    _requireSession();
+    final Uri uri = _prefsUri(item);
+    final Map<String, Object?> current = _asMap(await _send('GET', uri));
+    final Object? custom = current['CustomPrefs'];
+    await _send(
+      'POST',
+      uri,
+      body: <String, Object?>{
+        ...current,
+        'CustomPrefs': <Object?, Object?>{if (custom is Map) ...custom, ...prefs},
+      },
+      expectJson: false,
+    );
+  }
+
   /// Tell the server playback began. Without this the server records positions
   /// but never a last-played date, and the film does not appear in
   /// Items/Resume at all - verified against 10.11.11: a film with a 50-minute

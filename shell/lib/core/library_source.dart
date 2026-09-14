@@ -1,5 +1,6 @@
 import '../jellyfin/jellyfin_client.dart';
 import '../jellyfin/models.dart';
+import 'track_choice.dart';
 
 /// Where the shell gets things to watch.
 ///
@@ -37,6 +38,13 @@ abstract interface class LibrarySource {
   Future<String> subtitleText(MediaItem item, MediaTrack track);
   Future<List<RemoteSubtitle>> searchSubtitles(MediaItem item, String language);
   Future<void> downloadSubtitle(MediaItem item, RemoteSubtitle subtitle);
+
+  /// The audio and subtitles last picked for [item]; the file's defaults if
+  /// nothing was. [item] must carry its full track list.
+  Future<TrackChoice> savedTracks(MediaItem item);
+
+  /// Remembers [choice] for the next time [item] plays.
+  Future<void> saveTracks(MediaItem item, TrackChoice choice);
 
   Future<void> reportProgress(
     MediaItem item, {
@@ -255,6 +263,19 @@ class DemoLibrarySource implements LibrarySource {
   @override
   Future<void> downloadSubtitle(MediaItem item, RemoteSubtitle subtitle) => _soon(null);
 
+  // In memory: the demo has no server to keep them on.
+  static final Map<String, Map<String, String>> _savedPrefs = <String, Map<String, String>>{};
+
+  @override
+  Future<TrackChoice> savedTracks(MediaItem item) =>
+      _soon(TrackChoice.fromPrefs(_savedPrefs[item.id] ?? const <String, String>{}, item));
+
+  @override
+  Future<void> saveTracks(MediaItem item, TrackChoice choice) {
+    _savedPrefs[item.id] = choice.toPrefs();
+    return _soon(null);
+  }
+
   @override
   Future<void> reportProgress(MediaItem item, {required Duration position, required bool isPaused, String? playSessionId}) async {}
 
@@ -373,6 +394,18 @@ class JellyfinLibrarySource implements LibrarySource {
   Future<void> downloadSubtitle(MediaItem item, RemoteSubtitle subtitle) async {
     await _signIn();
     return client.downloadSubtitle(item, subtitle);
+  }
+
+  @override
+  Future<TrackChoice> savedTracks(MediaItem item) async {
+    await _signIn();
+    return TrackChoice.fromPrefs(await client.itemPrefs(item), item);
+  }
+
+  @override
+  Future<void> saveTracks(MediaItem item, TrackChoice choice) async {
+    await _signIn();
+    return client.setItemPrefs(item, choice.toPrefs());
   }
 
   @override

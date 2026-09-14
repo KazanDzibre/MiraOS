@@ -26,7 +26,9 @@ class DetailScreen extends StatefulWidget {
 
   final LibrarySource source;
   final MediaItem item;
-  final void Function(MediaItem item, {required bool fromStart, required TrackChoice choice}) onPlay;
+  /// A null choice means the saved tracks were not loaded yet; the player
+  /// loads them itself.
+  final void Function(MediaItem item, {required bool fromStart, required TrackChoice? choice}) onPlay;
 
   @override
   State<DetailScreen> createState() => _DetailScreenState();
@@ -35,6 +37,9 @@ class DetailScreen extends StatefulWidget {
 class _DetailScreenState extends State<DetailScreen> {
   late MediaItem _item = widget.item;
   TrackChoice _choice = const TrackChoice();
+
+  /// Whether [_choice] is known: loaded from what was saved, or picked here.
+  bool _tracksKnown = false;
 
   /// Play/Resume. Focus returns here when a button it was on disappears -
   /// Clear progress removes itself - so the remote is never left stranded.
@@ -55,12 +60,20 @@ class _DetailScreenState extends State<DetailScreen> {
     debugAssertReachableAfterFrame(context, screen: 'DetailScreen');
   }
 
-  /// Lists arrive without full track data; fetch it so the picker has it.
+  /// Lists arrive without full track data; fetch it so the picker has it, and
+  /// the tracks saved for this film.
   Future<void> _load() async {
     try {
       final MediaItem full = await widget.source.item(widget.item.id);
       if (!mounted) return;
       setState(() => _item = full);
+      final TrackChoice saved = await widget.source.savedTracks(full);
+      // A pick made on this visit while that was loading wins.
+      if (!mounted || _tracksKnown) return;
+      setState(() {
+        _choice = saved;
+        _tracksKnown = true;
+      });
     } on JellyfinException {
       // The screen still works with what the list gave us.
     }
@@ -113,6 +126,7 @@ class _DetailScreenState extends State<DetailScreen> {
         onChanged: (TrackChoice choice, MediaItem item) => setState(() {
           _choice = choice;
           _item = item;
+          _tracksKnown = true;
         }),
       ),
       transitionsBuilder: (BuildContext c, Animation<double> a, Animation<double> b, Widget child) =>
@@ -216,12 +230,12 @@ class _DetailScreenState extends State<DetailScreen> {
                   kind: MiraButtonKind.primary,
                   autofocus: true,
                   focusNode: _primaryNode,
-                  onSelect: () => widget.onPlay(item, fromStart: !item.canResume, choice: _choice),
+                  onSelect: () => widget.onPlay(item, fromStart: !item.canResume, choice: _tracksKnown ? _choice : null),
                 ),
                 if (item.canResume)
                   MiraButton(
                     label: 'From start',
-                    onSelect: () => widget.onPlay(item, fromStart: true, choice: _choice),
+                    onSelect: () => widget.onPlay(item, fromStart: true, choice: _tracksKnown ? _choice : null),
                   ),
                 MiraButton(label: 'Subtitles & audio', onSelect: _openTracks),
                 MiraButton(label: 'Mark watched', onSelect: _busy ? null : _markWatched),

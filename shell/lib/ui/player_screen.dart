@@ -34,14 +34,17 @@ class PlayerScreen extends StatefulWidget {
     required this.source,
     required this.item,
     required this.fromStart,
-    this.choice = const TrackChoice(),
+    this.choice,
     this.playerFactory = createPlayer,
   });
 
   final LibrarySource source;
   final MediaItem item;
   final bool fromStart;
-  final TrackChoice choice;
+
+  /// Null plays with the tracks saved for the film - Resume on Home goes
+  /// straight here, without the film page that would otherwise load them.
+  final TrackChoice? choice;
 
   /// Tests inject a fake; the app uses whichever backend the platform has.
   final MiraPlayer Function() playerFactory;
@@ -57,7 +60,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   late final MiraPlayer _player = widget.playerFactory();
   late MediaItem _item = widget.item;
-  late TrackChoice _choice = widget.choice;
+  late TrackChoice _choice = widget.choice ?? const TrackChoice();
+  late bool _tracksResolved = widget.choice != null;
 
   PlaybackPlan? _plan;
   Subtitles? _subtitles;
@@ -109,6 +113,20 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   Future<void> _start(Duration at) async {
     setState(() => _failure = null);
+    if (!_tracksResolved) {
+      _tracksResolved = true;
+      try {
+        final MediaItem full = await widget.source.item(_item.id);
+        final TrackChoice saved = await widget.source.savedTracks(full);
+        if (!mounted) return;
+        setState(() {
+          _item = full;
+          _choice = saved;
+        });
+      } on JellyfinException {
+        // Play with the file's defaults rather than not at all.
+      }
+    }
     try {
       final MediaTrack? audio = _choice.audio;
       final PlaybackPlan plan = await widget.source.planPlayback(

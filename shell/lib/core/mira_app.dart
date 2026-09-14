@@ -74,7 +74,7 @@ class _MiraAppState extends State<MiraApp> {
   Future<void> _openPlayer(
     MediaItem item, {
     required bool fromStart,
-    TrackChoice choice = const TrackChoice(),
+    TrackChoice? choice,
   }) async {
     await _navigator.currentState?.push(_route((BuildContext _) => PlayerScreen(
           source: widget.source,
@@ -144,7 +144,7 @@ class _Root extends StatefulWidget {
   final DiscoverSource? discover;
   final Listenable libraryChanged;
   final ValueChanged<MediaItem> onOpen;
-  final void Function(MediaItem item, {required bool fromStart, TrackChoice choice}) onPlay;
+  final void Function(MediaItem item, {required bool fromStart, TrackChoice? choice}) onPlay;
 
   @override
   State<_Root> createState() => _RootState();

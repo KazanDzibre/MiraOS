@@ -317,7 +317,7 @@ void main() {
     await tester.pumpWidget(_harness(DetailScreen(
       source: const DemoLibrarySource(),
       item: item,
-      onPlay: (MediaItem _, {required bool fromStart, required TrackChoice choice}) {},
+      onPlay: (MediaItem _, {required bool fromStart, required TrackChoice? choice}) {},
     )));
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
@@ -381,7 +381,7 @@ void main() {
     await tester.pumpWidget(_harness(DetailScreen(
       source: const DemoLibrarySource(),
       item: item,
-      onPlay: (MediaItem _, {required bool fromStart, required TrackChoice choice}) {},
+      onPlay: (MediaItem _, {required bool fromStart, required TrackChoice? choice}) {},
     )));
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
@@ -508,6 +508,47 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     await expectLater(find.byType(TracksSheet), matchesGoldenFile('goldens/tracks.png'));
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('OK on a subtitle applies it, closes the sheet and remembers it', (WidgetTester tester) async {
+    sizeToTv(tester);
+    const DemoLibrarySource source = DemoLibrarySource();
+    final MediaItem item = await demoItem(tester, 'demo-ferrous');
+    TrackChoice? applied;
+    await tester.pumpWidget(_harness(Navigator(
+      onGenerateRoute: (RouteSettings _) => PageRouteBuilder<void>(
+        pageBuilder: (BuildContext c, Animation<double> a, Animation<double> b) => const SizedBox.shrink(),
+      ),
+    )));
+    tester.state<NavigatorState>(find.byType(Navigator)).push(PageRouteBuilder<void>(
+      opaque: false,
+      pageBuilder: (BuildContext c, Animation<double> a, Animation<double> b) => TracksSheet(
+        source: source,
+        item: item,
+        initial: const TrackChoice(),
+        onChanged: (TrackChoice choice, MediaItem _) => applied = choice,
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('OK'), findsNothing, reason: 'there is nothing to confirm any more');
+
+    // Subtitles tab -> Off -> English, then OK once.
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pump();
+    expect(FocusManager.instance.primaryFocus?.debugLabel, 'track:English');
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+
+    expect(applied?.subtitle?.index, 3);
+    expect(find.byType(TracksSheet), findsNothing, reason: 'OK did not close the sheet');
+    // Real timers: the demo source answers after a delay, which fake time
+    // outside a pump never reaches.
+    final TrackChoice saved = (await tester.runAsync(() => source.savedTracks(item)))!;
+    expect(saved.subtitle?.index, 3, reason: 'the pick was not remembered for the film');
+    expect(saved.audio, isNull);
+
     await tester.pumpWidget(const SizedBox.shrink());
   });
 

@@ -23,6 +23,33 @@ class TrackChoice {
 
   TrackChoice withSubtitle(MediaTrack? subtitle) =>
       TrackChoice(audio: audio, subtitle: subtitle);
+
+  /// The stored form, as the server keeps it for one film.
+  Map<String, String> toPrefs() => <String, String>{
+        'audio': audio == null ? 'default' : _encode(audio!),
+        'subtitle': subtitle == null ? 'off' : _encode(subtitle!),
+      };
+
+  /// The choice stored for [item], matched against its current tracks. A track
+  /// that no longer matches falls back to the default rather than guessing.
+  static TrackChoice fromPrefs(Map<String, String> prefs, MediaItem item) => TrackChoice(
+        audio: _decode(prefs['audio'], item.audioTracks),
+        subtitle: _decode(prefs['subtitle'], item.subtitleTracks),
+      );
+
+  // Index plus language and codec: an index alone can name a different track
+  // after the server rescans the file or a subtitle is deleted.
+  static String _encode(MediaTrack t) => '${t.index}|${t.language ?? ''}|${t.codec ?? ''}';
+
+  static MediaTrack? _decode(String? stored, List<MediaTrack> tracks) {
+    final List<String> parts = (stored ?? '').split('|');
+    if (parts.length != 3) return null;
+    final int? index = int.tryParse(parts[0]);
+    for (final MediaTrack t in tracks) {
+      if (t.index == index && (t.language ?? '') == parts[1] && (t.codec ?? '') == parts[2]) return t;
+    }
+    return null;
+  }
 }
 
 const Map<String, String> _languages = <String, String>{
