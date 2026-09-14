@@ -1,0 +1,60 @@
+#!/bin/sh
+#
+# NetBird peer daemon: the tunnel to the home server.
+#
+# Runs after S40network and before mirad (inittab only respawns mirad once
+# rcS has finished), so the shell can always reach the daemon socket even if
+# the tunnel itself is not up yet.
+#
+# Never blocks boot: start-stop-daemon backgrounds the daemon and returns at
+# once. With no network or no login the daemon still serves its socket and
+# reports NeedsLogin / Connecting, retrying on its own backoff - the shell shows
+# that state instead of the box hanging here.
+#
+# State (WireGuard key, profile, login) lives on the persistent partition via
+# NB_STATE_DIR; mirad creates that directory too, but init scripts run first.
+# The log goes to a file, never the console: tty1 is product surface.
+
+DAEMON=/usr/bin/netbird
+PIDFILE=/run/netbird.pid
+SOCKET=unix:///var/run/netbird.sock
+LOG_DIR=/var/log/netbird
+export NB_STATE_DIR=/var/lib/mira/netbird
+# /var/log is /tmp, which is RAM. netbird rotates at 15 MB with 10 backups by
+# default (up to 165 MB); 1 MB caps the worst case at about 11 MB.
+export NB_LOG_MAX_SIZE_MB=1
+
+start() {
+	[ -x "$DAEMON" ] || exit 0
+	mkdir -p "$NB_STATE_DIR" "$LOG_DIR"
+	chmod 0700 "$NB_STATE_DIR"
+	printf 'Starting netbird: '
+	if start-stop-daemon -S -q -b -m -p "$PIDFILE" -x "$DAEMON" -- \
+		service run \
+		--daemon-addr "$SOCKET" \
+		--log-file "$LOG_DIR/client.log"; then
+		echo OK
+	else
+		echo FAIL
+	fi
+}
+
+stop() {
+	printf 'Stopping netbird: '
+	# The daemon tears the tunnel down on SIGTERM and then sleeps ~2 s.
+	start-stop-daemon -K -q -p "$PIDFILE" -s TERM
+	for _ in 1 2 3 4 5; do
+		[ -d "/proc/$(cat "$PIDFILE" 2>/dev/null)" ] || break
+		sleep 1
+	done
+	rm -f "$PIDFILE"
+	echo OK
+}
+
+case "$1" in
+start) start ;;
+stop) stop ;;
+restart | reload) stop; start ;;
+*) echo "Usage: $0 {start|stop|restart}"; exit 1 ;;
+esac
+exit 0

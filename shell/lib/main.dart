@@ -1,9 +1,12 @@
+import 'dart:io';
+
 import 'package:flutter/widgets.dart';
 
 import 'core/library_source.dart';
 import 'core/mira_app.dart';
 import 'core/mira_config.dart';
 import 'jellyfin/jellyfin_client.dart';
+import 'network/netbird_cli.dart';
 import 'overseerr/discover_source.dart';
 import 'overseerr/overseerr_client.dart';
 import 'player/player_factory.dart';
@@ -39,5 +42,10 @@ Future<void> main() async {
         )
       : null;
 
-  runApp(MiraApp(source: source, discover: discover));
+  // The box's own tunnel. A developer desktop has no netbird of Mira's to
+  // manage, so there the top bar's address stays a plain label.
+  final CliNetbird netbird = CliNetbird();
+  final bool hasNetbird = File(netbird.executable).existsSync();
+
+  runApp(MiraApp(source: source, discover: discover, netbird: hasNetbird ? netbird : null));
 }

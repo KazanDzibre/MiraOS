@@ -336,6 +336,49 @@ To read shell and GStreamer output in the VM:
 `./scripts/run-vm.sh --gl --serial-log FILE --monitor SOCK` - the monitor socket
 path must be under 108 bytes, so keep it short (e.g. `/tmp/mira-mon.sock`).
 
+**Track choices are remembered per film, on the server** (2026-09-14): OK on a
+track in the subtitles & audio sheet applies it and closes the sheet, and the
+choice is stored in Jellyfin's `DisplayPreferences/{itemId}?client=mira`
+CustomPrefs as `index|language|codec` (a track that no longer matches is
+ignored, not mis-picked). Server-side so it survives a reflash and the VM's
+RAM-only root. That endpoint takes the whole preferences object and also
+carries jellyfin-web's user settings (`skipForwardLength` and friends), so
+`setItemPrefs` sends back everything it read. Verified with
+`tool/probe_track_prefs.dart`.
+
+### NetBird (tunnel to the home server)
+
+`netbird` 0.78.2 (client only) is packaged in `buildroot-external/package/netbird/`
+and started by `S45netbird` (after S40network, before mirad) with state in
+`/var/lib/mira/netbird` (`NB_STATE_DIR`) and its log in `/var/log/netbird/`
+(RAM; capped with `NB_LOG_MAX_SIZE_MB=1`). The account is NetBird cloud,
+`https://api.netbird.io:443`. Sign-in is the device-code flow, shown by the
+shell as a QR code (`lib/ui/network_screen.dart`); no setup keys, and no
+password on the TV - NetBird has no such login.
+
+Traps already paid for (2026-09-14):
+- **Kernel WireGuard needs netfilter.** With the kernel interface, netbird's
+  firewall has no userspace fallback and the engine refuses to start
+  ("create firewall manager"). `netbird.mk` enables nftables and policy
+  routing through `LINUX_CONFIG_FIXUPS`, so every target gets them - but a
+  `.mk` change does not rebuild the kernel: `make linux-reconfigure`.
+- **Vendoring needs the Go module proxy.** Buildroot vendors with
+  `GOPROXY=direct`, and a go-spew commit in netbird's module graph is no longer
+  served by GitHub. `NETBIRD_GO_ENV` sets proxy.golang.org; go.sum still
+  verifies. `_INSTALL_BINS` no longer exists in this Buildroot.
+- **The shell drives the CLI as root over `/var/run/netbird.sock`**
+  (`lib/network/netbird_cli.dart`). `status --json` works in every state;
+  `daemonStatus` is Idle/Connecting/Connected/NeedsLogin/LoginFailed/
+  SessionExpired. With no daemon it takes 10 s and exits 1. Sign-in is
+  `up --no-browser`: parse the URL after "Use this URL to log in:"; it blocks,
+  prints `Connected`, exits 0; kill it to cancel.
+  Keep DISPLAY/WAYLAND_DISPLAY/BROWSER out of its environment or netbird
+  tries a browser flow instead of device code.
+- **`deregister` (alias `logout`) deletes the peer.** Use `down` to disconnect.
+- **The CLI writes `$HOME/.config/netbird` on every call**; the shell points
+  `XDG_CONFIG_HOME` at `/tmp` so a read-only root does not break it.
+- In the VM `/var/lib/mira` is RAM, so the NetBird sign-in is lost on reboot.
+
 ### Boot and storage (rpi4 target)
 
 ```

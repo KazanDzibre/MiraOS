@@ -1,6 +1,15 @@
 config BR2_PACKAGE_NETBIRD
 	bool "netbird"
+	depends on BR2_PACKAGE_HOST_GO_TARGET_ARCH_SUPPORTS
+	select BR2_PACKAGE_HOST_GO
 	help
-	  NetBird mesh VPN client, used to reach the home server.
+	  NetBird mesh VPN client (CLI + daemon), used to reach the home
+	  server. Client only: no management, signal, relay or UI.
 
-	  Not yet implemented - placeholder so the Mira menu resolves.
+	  Uses kernel WireGuard; the package enables TUN, WireGuard,
+	  nftables and policy routing in the kernel config.
+
+	  https://github.com/netbirdio/netbird
+
+comment "netbird needs a toolchain w/ Go support"
+	depends on !BR2_PACKAGE_HOST_GO_TARGET_ARCH_SUPPORTS

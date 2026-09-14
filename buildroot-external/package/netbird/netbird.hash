@@ -1,0 +1,5 @@
+# Locally computed (tarball includes the vendored Go modules, fetched via
+# proxy.golang.org and checked against upstream go.sum)
+sha256  d32e8cb6e18e4f1fc5d939bfef2d0880c5cb621429ab28454384f4199be9475d  netbird-0.78.2-go2.tar.gz
+sha256  7e232c7ad5ae5bf0c7e0fa49a02d56196e4e8a55a27393492f7bdf90bc6049f7  LICENSE
+sha256  9d452cfc0aa45031fb7db2b2bfcad672bea3729b24daf1c68b64f2cbd5f14ad4  LICENSES/BSD-3-Clause.txt

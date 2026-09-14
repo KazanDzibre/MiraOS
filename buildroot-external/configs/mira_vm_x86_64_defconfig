@@ -115,3 +115,6 @@ BR2_PACKAGE_MIRAD=y
 BR2_PACKAGE_SD_EVENT_SHIM=y
 BR2_PACKAGE_FLUTTERPI=y
 BR2_PACKAGE_MIRA_SHELL=y
+# The tunnel to the home server. Started by S45netbird; its package also
+# enables the kernel options it needs (see netbird.mk). Needed on rpi4 too.
+BR2_PACKAGE_NETBIRD=y
