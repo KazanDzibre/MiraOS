@@ -668,14 +668,26 @@ void main() {
   testWidgets('Back hides the player controls first, and only then stops the film', (WidgetTester tester) async {
     sizeToTv(tester);
     final MediaItem item = await demoItem(tester, 'demo-ashfall');
+    // Back wired the way MiraApp wires it: the remote's Back is the app's
+    // maybePop, whatever has focus.
+    final GlobalKey<NavigatorState> navigator = GlobalKey<NavigatorState>();
     await tester.pumpWidget(_harness(RemoteShortcuts(
-      child: Navigator(
-        onGenerateRoute: (RouteSettings _) => PageRouteBuilder<void>(
-          pageBuilder: (BuildContext c, Animation<double> a, Animation<double> b) => const SizedBox.shrink(),
+      child: Actions(
+        actions: <Type, Action<Intent>>{
+          BackIntent: CallbackAction<BackIntent>(onInvoke: (BackIntent _) {
+            navigator.currentState?.maybePop();
+            return null;
+          }),
+        },
+        child: Navigator(
+          key: navigator,
+          onGenerateRoute: (RouteSettings _) => PageRouteBuilder<void>(
+            pageBuilder: (BuildContext c, Animation<double> a, Animation<double> b) => const SizedBox.shrink(),
+          ),
         ),
       ),
     )));
-    tester.state<NavigatorState>(find.byType(Navigator)).push(PageRouteBuilder<void>(
+    navigator.currentState!.push(PageRouteBuilder<void>(
       pageBuilder: (BuildContext c, Animation<double> a, Animation<double> b) => PlayerScreen(
         source: const DemoLibrarySource(),
         item: item,
@@ -699,6 +711,29 @@ void main() {
       await tester.pump(const Duration(milliseconds: 250));
     }
     expect(find.byType(PlayerScreen), findsNothing, reason: 'Back with the controls hidden did not stop the film');
+
+    // Found in the VM: while a stream is still opening, focus need not be
+    // inside the player yet, and Back reached the app's maybePop directly.
+    navigator.currentState!.push(PageRouteBuilder<void>(
+      pageBuilder: (BuildContext c, Animation<double> a, Animation<double> b) => PlayerScreen(
+        source: const DemoLibrarySource(),
+        item: item,
+        fromStart: true,
+        choice: const TrackChoice(),
+        playerFactory: FakeMiraPlayer.new,
+      ),
+    ));
+    for (int i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 250));
+    }
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    for (int i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 250));
+    }
+    expect(find.byType(PlayerScreen), findsOneWidget,
+        reason: 'Back with focus outside the player skipped hiding the controls and stopped the film');
 
     await tester.pumpWidget(const SizedBox.shrink());
   });

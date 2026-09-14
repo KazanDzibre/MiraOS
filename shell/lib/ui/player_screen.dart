@@ -235,7 +235,24 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _reportTimer?.cancel();
     _reportStopped(_player.status.value.position);
     _player.stop();
-    Navigator.of(context).maybePop();
+    // pop, not maybePop: maybePop would come back through the PopScope and
+    // [_back] would hide the controls instead of leaving.
+    Navigator.of(context).pop();
+  }
+
+  /// Every Back in the player, wherever focus is: it closes the controls
+  /// first, and stops the film only once they are already hidden - so reaching
+  /// for Back to dismiss the bar does not end the film. Found in the VM: while
+  /// a stream was still opening, focus was not yet inside the player, so the
+  /// app's own Back popped the route and skipped this rule entirely.
+  void _back() {
+    if (_overlay && _failure == null) {
+      _hideTimer?.cancel();
+      setState(() => _overlay = false);
+      _focusAfterFrame(_wakeNode);
+    } else {
+      _exit();
+    }
   }
 
   // --- overlay --------------------------------------------------------------
@@ -358,6 +375,18 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // The app's Back is its navigator's maybePop, which reaches here whether
+    // or not focus is inside the player. [_exit] pops directly, past this.
+    return PopScope<void>(
+      canPop: false,
+      onPopInvokedWithResult: (bool didPop, void _) {
+        if (!didPop) _back();
+      },
+      child: _content(),
+    );
+  }
+
+  Widget _content() {
     if (_failure != null) {
       return MiraStateScreen(
         glyph: MiraGlyph.serverDown,
@@ -377,16 +406,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     return Actions(
       actions: <Type, Action<Intent>>{
         BackIntent: CallbackAction<BackIntent>(onInvoke: (BackIntent _) {
-          // Back closes the controls first, and stops the film only once
-          // they are already hidden - so reaching for Back to dismiss the
-          // bar does not end the film.
-          if (_overlay) {
-            _hideTimer?.cancel();
-            setState(() => _overlay = false);
-            _focusAfterFrame(_wakeNode);
-          } else {
-            _exit();
-          }
+          _back();
           return null;
         }),
       },
