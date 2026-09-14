@@ -7,6 +7,7 @@ import 'package:mira_shell/core/library_source.dart';
 import 'package:mira_shell/core/mira_app.dart';
 import 'package:mira_shell/core/tokens.dart';
 import 'package:mira_shell/input/pointer_mode.dart';
+import 'package:mira_shell/input/remote.dart';
 import 'package:mira_shell/jellyfin/models.dart';
 import 'package:mira_shell/network/netbird.dart';
 import 'package:mira_shell/ui/network_screen.dart';
@@ -347,6 +348,13 @@ void main() {
     }
     expect(find.byType(PlayerScreen), findsOneWidget);
 
+    // The controls are up when a film starts: the first Back only hides them.
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    for (int i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 150));
+    }
+    expect(find.byType(PlayerScreen), findsOneWidget, reason: 'Back with the controls up stopped the film');
+
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     for (int i = 0; i < 8; i++) {
       await tester.pump(const Duration(milliseconds: 150));
@@ -355,7 +363,8 @@ void main() {
     expect(find.byType(DetailScreen), findsOneWidget,
         reason: 'one Back closed the film page too');
 
-    // Held Back: one press, however long. A repeat must not pop the film page.
+    // Held Back: one press, however long. A repeat must not go on to stop the
+    // film, let alone pop the film page.
     await tester.sendKeyEvent(LogicalKeyboardKey.enter); // Resume -> player again
     for (int i = 0; i < 8; i++) {
       await tester.pump(const Duration(milliseconds: 150));
@@ -370,9 +379,16 @@ void main() {
     for (int i = 0; i < 8; i++) {
       await tester.pump(const Duration(milliseconds: 150));
     }
+    expect(find.byType(PlayerScreen), findsOneWidget,
+        reason: 'a held Back repeated past hiding the controls and stopped the film');
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    for (int i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 150));
+    }
     expect(find.byType(PlayerScreen), findsNothing);
     expect(find.byType(DetailScreen), findsOneWidget,
-        reason: 'a held Back repeated and closed the film page as well');
+        reason: 'Back from the player closed the film page as well');
 
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -645,6 +661,44 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
     expect(find.textContaining('0:00:1'), findsOneWidget,
         reason: 'right on the scrub bar did not move the target 10 s on');
+
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('Back hides the player controls first, and only then stops the film', (WidgetTester tester) async {
+    sizeToTv(tester);
+    final MediaItem item = await demoItem(tester, 'demo-ashfall');
+    await tester.pumpWidget(_harness(RemoteShortcuts(
+      child: Navigator(
+        onGenerateRoute: (RouteSettings _) => PageRouteBuilder<void>(
+          pageBuilder: (BuildContext c, Animation<double> a, Animation<double> b) => const SizedBox.shrink(),
+        ),
+      ),
+    )));
+    tester.state<NavigatorState>(find.byType(Navigator)).push(PageRouteBuilder<void>(
+      pageBuilder: (BuildContext c, Animation<double> a, Animation<double> b) => PlayerScreen(
+        source: const DemoLibrarySource(),
+        item: item,
+        fromStart: true,
+        choice: const TrackChoice(),
+        playerFactory: FakeMiraPlayer.new,
+      ),
+    ));
+    for (int i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 250));
+    }
+    expect(FocusManager.instance.primaryFocus?.debugLabel, 'player:scrub', reason: 'the overlay was not up');
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(find.byType(PlayerScreen), findsOneWidget, reason: 'Back with the controls up stopped the film');
+    expect(FocusManager.instance.primaryFocus?.debugLabel, 'player:wake', reason: 'Back did not hide the controls');
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    for (int i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 250));
+    }
+    expect(find.byType(PlayerScreen), findsNothing, reason: 'Back with the controls hidden did not stop the film');
 
     await tester.pumpWidget(const SizedBox.shrink());
   });

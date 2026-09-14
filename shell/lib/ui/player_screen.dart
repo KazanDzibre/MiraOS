@@ -26,8 +26,9 @@ import 'widgets/mira_button.dart';
 ///
 /// Remote model: the overlay hides after a few seconds of playback. While it is
 /// hidden, the first key only brings it back - nobody should seek by accident
-/// while reaching for the remote - except Back, which always stops. With the
-/// overlay up, focus starts on the scrub bar: left/right seek, OK pauses.
+/// while reaching for the remote - except Back, which stops. With the overlay
+/// up, Back only hides it; focus starts on the scrub bar: left/right seek, OK
+/// pauses.
 class PlayerScreen extends StatefulWidget {
   const PlayerScreen({
     super.key,
@@ -376,7 +377,16 @@ class _PlayerScreenState extends State<PlayerScreen> {
     return Actions(
       actions: <Type, Action<Intent>>{
         BackIntent: CallbackAction<BackIntent>(onInvoke: (BackIntent _) {
-          _exit();
+          // Back closes the controls first, and stops the film only once
+          // they are already hidden - so reaching for Back to dismiss the
+          // bar does not end the film.
+          if (_overlay) {
+            _hideTimer?.cancel();
+            setState(() => _overlay = false);
+            _focusAfterFrame(_wakeNode);
+          } else {
+            _exit();
+          }
           return null;
         }),
       },

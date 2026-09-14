@@ -569,7 +569,8 @@ room. Deliberate, keep them:
     closes. Text subtitles switch live.
   - Genres are aggregated client-side from paged Items, not `/Genres`.
   - Player remote model: the overlay auto-hides after 5 s of playback; the
-    first key on a hidden overlay only wakes it (Back always stops); left/right
+    first key on a hidden overlay only wakes it; Back with the overlay up only
+    hides it, and stops the film only when the overlay is already hidden; left/right
     on the scrub bar seek 10 s, 30 s when held, debounced into one seek.
     Down from the scrub bar goes **explicitly** to Play/Pause: the bar spans the
     screen, so Flutter's directional policy picked the button nearest its
