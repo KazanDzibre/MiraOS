@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../core/library_source.dart';
@@ -75,6 +76,17 @@ class _HomeScreenState extends State<HomeScreen> {
   /// second rail's label (found in the VM).
   final ScrollController _railsScroll = ScrollController();
 
+  /// One horizontal controller per rail - there are at most two - so Right at
+  /// the end of a rail can put the next rail back at its start before focusing
+  /// its first poster.
+  final List<ScrollController> _railScrolls =
+      List<ScrollController>.generate(2, (_) => ScrollController());
+
+  /// How far past the focused poster a rail keeps in view. Traversal alone
+  /// stopped with the poster against the screen edge, its focus ring cut off
+  /// and nothing of the next poster showing (found in the VM).
+  static const double _revealMargin = 96;
+
   static double get _sectionHeight =>
       _labelHeight + PosterTile.heightFor(_posterWidth) + _ringRoom * 2;
 
@@ -87,6 +99,22 @@ class _HomeScreenState extends State<HomeScreen> {
       if ((_railsScroll.offset - target).abs() < 0.5) return;
       _railsScroll.animateTo(target, duration: MiraMotion.screen, curve: Curves.easeOut);
     });
+  }
+
+  /// Right on a rail's last poster carries on to the next rail's first poster
+  /// instead of stopping dead.
+  KeyEventResult _railKey(int rail, int index, KeyEvent event) {
+    if (event is KeyUpEvent || event.logicalKey != LogicalKeyboardKey.arrowRight) {
+      return KeyEventResult.ignored;
+    }
+    final List<_Section> sections = _sections;
+    if (index != sections[rail].items.length - 1 || rail + 1 >= sections.length) {
+      return KeyEventResult.ignored;
+    }
+    final ScrollController next = _railScrolls[rail + 1];
+    if (next.hasClients) next.jumpTo(0);
+    _nodes[rail + 1][0].requestFocus();
+    return KeyEventResult.handled;
   }
 
   List<_Section> get _sections => <_Section>[
@@ -155,6 +183,9 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _disposeNodes();
     _railsScroll.dispose();
+    for (final ScrollController c in _railScrolls) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -239,6 +270,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           SizedBox(
                             height: railHeight,
                             child: ListView.separated(
+                              controller: _railScrolls[s],
                               scrollDirection: Axis.horizontal,
                               padding: const EdgeInsets.all(_ringRoom),
                               itemCount: sections[s].items.length,
@@ -249,6 +281,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                   item: item,
                                   width: _posterWidth,
                                   focusNode: _nodes[s][i],
+                                  onKey: (KeyEvent event) => _railKey(s, i, event),
+                                  revealMargin: const EdgeInsets.symmetric(horizontal: _revealMargin),
                                   autofocus: s == 0 && i == 0,
                                   imageUrl: widget.source.posterFor(item, maxHeight: posterHeight.round()),
                                   onSelect: () => widget.onOpen != null

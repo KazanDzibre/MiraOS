@@ -32,9 +32,10 @@ full of packages that will never run, and tuned for nothing in particular. Mira
 is built for exactly one job — putting video on a screen and letting you choose
 what to watch — and contains nothing that does not serve it.
 
-**v1 scope:** Jellyfin playback over a NetBird tunnel to a home server, driven by
-the remote. YouTube and a general plugin system are deliberately v2; see
-`docs/` for why that sequencing matters.
+**v1 scope:** Jellyfin playback over a NetBird tunnel to a home server, plus
+browsing and requesting new titles through Seerr (Overseerr's successor), all
+driven by the remote. YouTube and a general plugin system are deliberately v2;
+`CLAUDE.md` explains why that sequencing matters.
 
 ## Targets
 
@@ -53,11 +54,16 @@ real one, and it software-decodes video because no VM has a VideoCore.
 ## Building
 
 ```sh
+./scripts/build-shell.sh       # build the Flutter bundle first
 ./scripts/build.sh vm          # -> out/mira-vm-latest.iso
-./scripts/run-vm.sh            # boot it in QEMU
-./scripts/run-vm.sh --gl       # with virgl 3D, needed once the shell renders
-./scripts/run-vm.sh --serial   # console on this terminal, for debugging
+./scripts/run-vm.sh --gl       # boot it in QEMU with virgl 3D - required for the shell
+./scripts/run-vm.sh --serial   # console on this terminal, for debugging boot
+./scripts/run-vm.sh --gl --serial-tcp 4555   # shell on screen, console on a TCP port
 ```
+
+In the VM, arrow keys are the d-pad, Enter is OK and Escape is Back. The host
+needs QEMU's GTK UI, virtio-gpu display models and an audio backend, which Arch
+packages separately (`run-vm.sh` names whatever is missing).
 
 The first build takes 30–60 minutes and compiles a full cross toolchain.
 Subsequent builds are incremental. `--clean` discards the build tree for a
@@ -117,6 +123,20 @@ the network for hot reload — seconds per iteration instead of minutes.
 
 ## Status
 
-Early. The distro builds and boots; the shell does not exist yet. `mirad` is
-written to hold gracefully when `mira-shell` is absent, so a bare image is a
+**0.1.0 Algol, VM target working end to end.** The VM image boots in about two
+seconds into Mira Shell, signed in to a real Jellyfin server over NetBird:
+
+- Home with Continue Watching and Recently added
+- Films, Genres and a detail page for every film
+- Playback with picture and sound, seeking, audio track choice and subtitles,
+  including subtitles searched and downloaded through Jellyfin's Open Subtitles
+  plugin
+- Discover: trending, popular and upcoming titles from Seerr, requests, and
+  search with an on-screen keyboard
+- Everything operable with a d-pad alone
+
+**Not done yet:** the Raspberry Pi 4 image (so hardware video decode is
+researched but unmeasured), first-run setup on the box itself, and OTA updates.
+
+`mirad` holds gracefully when `mira-shell` is absent, so a bare image is a
 working, diagnosable system rather than a boot loop.

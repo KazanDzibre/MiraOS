@@ -11,6 +11,7 @@ import '../overseerr/overseerr_client.dart';
 import 'discover_screen.dart' show DiscoverTile;
 import 'discover_title_screen.dart';
 import 'widgets/chrome.dart';
+import 'widgets/grid_focus.dart';
 import 'widgets/poster.dart';
 
 /// Search Seerr for a specific title, with an on-screen keyboard.
@@ -54,6 +55,9 @@ class _DiscoverSearchScreenState extends State<DiscoverSearchScreen> {
 
   double get _ringRoom => MiraFocusRing.reach + 2;
 
+  /// Left from the first column goes back to the keyboard, so no left wrap.
+  final GridFocus _grid = GridFocus(columns: _columns, debugName: 'result', wrapLeft: false);
+
   @override
   void initState() {
     super.initState();
@@ -63,6 +67,7 @@ class _DiscoverSearchScreenState extends State<DiscoverSearchScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+    _grid.dispose();
     super.dispose();
   }
 
@@ -216,13 +221,24 @@ class _DiscoverSearchScreenState extends State<DiscoverSearchScreen> {
       return _message(_searching || !_searched ? 'Searching…' : 'Nothing on Seerr matches "${_query.trim()}".');
     }
     return LayoutBuilder(builder: (BuildContext context, BoxConstraints c) {
+      const double spacing = 24;
       final double width = (c.maxWidth - _ringRoom * 2 - _gap * (_columns - 1)) / _columns;
       final double height = PosterTile.heightFor(width);
+      _grid
+        ..rowExtent = height + spacing
+        ..mainAxisSpacing = spacing
+        ..itemCount = _results.length;
       return GridView.builder(
-        padding: EdgeInsets.all(_ringRoom),
+        controller: _grid.scroll,
+        padding: EdgeInsets.fromLTRB(
+          _ringRoom,
+          _ringRoom,
+          _ringRoom,
+          _grid.bottomPadding(c.maxHeight, top: _ringRoom, minimum: _ringRoom),
+        ),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: _columns,
-          mainAxisSpacing: 24,
+          mainAxisSpacing: spacing,
           crossAxisSpacing: _gap,
           childAspectRatio: width / height,
         ),
@@ -230,6 +246,8 @@ class _DiscoverSearchScreenState extends State<DiscoverSearchScreen> {
         itemBuilder: (BuildContext context, int i) => DiscoverTile(
           title: _results[i],
           width: width,
+          focusNode: _grid.nodeFor(i),
+          onKey: (KeyEvent event) => _grid.handleKey(i, event),
           imageUrl: widget.source.posterFor(_results[i]),
           onSelect: () => _open(_results[i]),
         ),

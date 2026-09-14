@@ -8,6 +8,8 @@
 #   --monitor PATH                QEMU monitor on a unix socket, for scripted
 #                                 remote presses: echo "sendkey right" | socat - UNIX-CONNECT:PATH
 #   --serial-log PATH             guest serial console to a file (shell logs)
+#   --serial-tcp PORT             guest serial console on 127.0.0.1:PORT, to log in
+#                                 and run commands while the window shows the shell
 set -euo pipefail
 
 MIRA_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -18,6 +20,7 @@ GL=0
 SERIAL=0
 MONITOR=""
 SERIAL_LOG=""
+SERIAL_TCP=""
 
 while [ $# -gt 0 ]; do
 	case "$1" in
@@ -25,6 +28,7 @@ while [ $# -gt 0 ]; do
 		--serial) SERIAL=1 ;;
 		--monitor)    MONITOR="$2"; shift ;;
 		--serial-log) SERIAL_LOG="$2"; shift ;;
+		--serial-tcp) SERIAL_TCP="$2"; shift ;;
 		--iso)    ISO="$2"; shift ;;
 		-m)       MEM="$2"; shift ;;
 		*)        echo "unknown flag: $1" >&2; exit 2 ;;
@@ -128,7 +132,9 @@ else
 			args+=(-device bochs-display -display gtk)
 		fi
 	fi
-	if [ -n "${SERIAL_LOG}" ]; then
+	if [ -n "${SERIAL_TCP}" ]; then
+		args+=(-serial "tcp:127.0.0.1:${SERIAL_TCP},server=on,wait=off")
+	elif [ -n "${SERIAL_LOG}" ]; then
 		args+=(-serial "file:${SERIAL_LOG}")
 	else
 		args+=(-serial null)

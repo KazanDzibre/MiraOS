@@ -75,6 +75,8 @@ class PosterTile extends StatelessWidget {
     this.onSelect,
     this.autofocus = false,
     this.focusNode,
+    this.onKey,
+    this.revealMargin,
   });
 
   final MediaItem item;
@@ -83,6 +85,8 @@ class PosterTile extends StatelessWidget {
   final VoidCallback? onSelect;
   final bool autofocus;
   final FocusNode? focusNode;
+  final KeyEventResult Function(KeyEvent event)? onKey;
+  final EdgeInsets? revealMargin;
 
   @override
   Widget build(BuildContext context) {
@@ -93,6 +97,8 @@ class PosterTile extends StatelessWidget {
       onSelect: onSelect,
       autofocus: autofocus,
       focusNode: focusNode,
+      onKey: onKey,
+      revealMargin: revealMargin,
       debugLabel: 'poster:${item.name}',
       // The ring hugs the artwork, not the artwork plus its caption.
       showRing: false,

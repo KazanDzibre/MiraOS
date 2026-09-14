@@ -7,6 +7,7 @@ import '../input/mira_focusable.dart';
 import '../jellyfin/jellyfin_client.dart';
 import '../jellyfin/models.dart';
 import 'widgets/chrome.dart';
+import 'widgets/grid_focus.dart';
 import 'widgets/mira_button.dart';
 import 'widgets/poster.dart';
 
@@ -51,6 +52,9 @@ class _FilmsScreenState extends State<FilmsScreen> {
   String? _error;
   List<GenreCount>? _genres;
 
+  final GridFocus _filmFocus = GridFocus(columns: _columns, debugName: 'films');
+  final GridFocus _genreFocus = GridFocus(columns: _genreColumns, debugName: 'genres');
+
   double get _ringRoom => MiraFocusRing.reach + 2;
 
   @override
@@ -58,6 +62,13 @@ class _FilmsScreenState extends State<FilmsScreen> {
     super.initState();
     _loadFirst();
     debugAssertReachableAfterFrame(context, screen: 'FilmsScreen');
+  }
+
+  @override
+  void dispose() {
+    _filmFocus.dispose();
+    _genreFocus.dispose();
+    super.dispose();
   }
 
   Future<void> _loadFirst() async {
@@ -229,13 +240,24 @@ class _FilmsScreenState extends State<FilmsScreen> {
 
   Widget _filmGrid() {
     return LayoutBuilder(builder: (BuildContext context, BoxConstraints c) {
+      const double spacing = 28;
       final double width = (c.maxWidth - _ringRoom * 2 - _gap * (_columns - 1)) / _columns;
       final double height = PosterTile.heightFor(width);
+      _filmFocus
+        ..rowExtent = height + spacing
+        ..mainAxisSpacing = spacing
+        ..itemCount = _items.length;
       return GridView.builder(
-        padding: EdgeInsets.fromLTRB(_ringRoom, _ringRoom, _ringRoom, MiraMetrics.safeV),
+        controller: _filmFocus.scroll,
+        padding: EdgeInsets.fromLTRB(
+          _ringRoom,
+          _ringRoom,
+          _ringRoom,
+          _filmFocus.bottomPadding(c.maxHeight, top: _ringRoom, minimum: MiraMetrics.safeV),
+        ),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: _columns,
-          mainAxisSpacing: 28,
+          mainAxisSpacing: spacing,
           crossAxisSpacing: _gap,
           childAspectRatio: width / height,
         ),
@@ -249,6 +271,8 @@ class _FilmsScreenState extends State<FilmsScreen> {
             item: item,
             width: width,
             autofocus: i == 0,
+            focusNode: _filmFocus.nodeFor(i),
+            onKey: (KeyEvent event) => _filmFocus.handleKey(i, event),
             imageUrl: widget.source.posterFor(item, maxHeight: height.round()),
             onSelect: () => widget.onOpen(item),
           );
@@ -261,19 +285,32 @@ class _FilmsScreenState extends State<FilmsScreen> {
     final List<GenreCount>? genres = _genres;
     if (genres == null) return const SizedBox.shrink();
     return LayoutBuilder(builder: (BuildContext context, BoxConstraints c) {
+      const double tileHeight = 220;
       final double width = (c.maxWidth - _ringRoom * 2 - _gap * (_genreColumns - 1)) / _genreColumns;
+      _genreFocus
+        ..rowExtent = tileHeight + _gap
+        ..mainAxisSpacing = _gap
+        ..itemCount = genres.length;
       return GridView.builder(
-        padding: EdgeInsets.fromLTRB(_ringRoom, _ringRoom, _ringRoom, MiraMetrics.safeV),
+        controller: _genreFocus.scroll,
+        padding: EdgeInsets.fromLTRB(
+          _ringRoom,
+          _ringRoom,
+          _ringRoom,
+          _genreFocus.bottomPadding(c.maxHeight, top: _ringRoom, minimum: MiraMetrics.safeV),
+        ),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: _genreColumns,
           mainAxisSpacing: _gap,
           crossAxisSpacing: _gap,
-          childAspectRatio: width / 220,
+          childAspectRatio: width / tileHeight,
         ),
         itemCount: genres.length,
         itemBuilder: (BuildContext context, int i) => _GenreTile(
           genre: genres[i],
           autofocus: i == 0,
+          focusNode: _genreFocus.nodeFor(i),
+          onKey: (KeyEvent event) => _genreFocus.handleKey(i, event),
           onSelect: () => _openGenre(genres[i]),
         ),
       );
@@ -312,17 +349,27 @@ class _Chip extends StatelessWidget {
 }
 
 class _GenreTile extends StatelessWidget {
-  const _GenreTile({required this.genre, required this.onSelect, this.autofocus = false});
+  const _GenreTile({
+    required this.genre,
+    required this.onSelect,
+    this.autofocus = false,
+    this.focusNode,
+    this.onKey,
+  });
 
   final GenreCount genre;
   final VoidCallback onSelect;
   final bool autofocus;
+  final FocusNode? focusNode;
+  final KeyEventResult Function(KeyEvent event)? onKey;
 
   @override
   Widget build(BuildContext context) {
     return MiraFocusable(
       onSelect: onSelect,
       autofocus: autofocus,
+      focusNode: focusNode,
+      onKey: onKey,
       debugLabel: 'genre:${genre.name}',
       builder: (BuildContext context, bool focused) => Container(
         clipBehavior: Clip.antiAlias,

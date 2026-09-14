@@ -200,6 +200,27 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
+  testWidgets('Right at the end of a rail carries on into the next rail', (WidgetTester tester) async {
+    sizeToTv(tester);
+    await tester.pumpWidget(const MiraApp(source: DemoLibrarySource()));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+
+    // The demo Continue Watching rail has four posters.
+    for (int i = 0; i < 3; i++) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+    }
+    expect(FocusManager.instance.primaryFocus?.debugLabel, 'rail-0-3');
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pumpAndSettle();
+    expect(FocusManager.instance.primaryFocus?.debugLabel, 'rail-1-0',
+        reason: 'Right on the last poster was stuck instead of moving to the next rail');
+
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets('every screen is reachable by d-pad alone', (WidgetTester tester) async {
     sizeToTv(tester);
     // The rule that is expensive to retrofit, asserted rather than trusted:
@@ -237,6 +258,38 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     await expectLater(find.byType(FilmsScreen), matchesGoldenFile('goldens/films.png'));
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('films grid wraps Right into the next row and puts that row at the top', (WidgetTester tester) async {
+    sizeToTv(tester);
+    await tester.pumpWidget(_harness(FilmsScreen(source: const DemoLibrarySource(), onOpen: (_) {})));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+
+    expect(FocusManager.instance.primaryFocus?.debugLabel, 'films-0');
+    final double firstRowTop = FocusManager.instance.primaryFocus!.rect.top;
+
+    // Six columns: five Rights reach the end of the first row.
+    for (int i = 0; i < 5; i++) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+    }
+    expect(FocusManager.instance.primaryFocus?.debugLabel, 'films-5');
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pumpAndSettle();
+    expect(FocusManager.instance.primaryFocus?.debugLabel, 'films-6',
+        reason: 'Right at the end of a row was stuck instead of moving to the next row');
+    expect(FocusManager.instance.primaryFocus!.rect.top, moreOrLessEquals(firstRowTop, epsilon: 1),
+        reason: 'the focused row was not scrolled to the top of the grid');
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+    await tester.pumpAndSettle();
+    expect(FocusManager.instance.primaryFocus?.debugLabel, 'films-5',
+        reason: 'Left at the start of a row did not go back to the previous row');
+    expect(FocusManager.instance.primaryFocus!.rect.top, moreOrLessEquals(firstRowTop, epsilon: 1));
+
     await tester.pumpWidget(const SizedBox.shrink());
   });
 

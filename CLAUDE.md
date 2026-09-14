@@ -199,9 +199,11 @@ autoplugging the wrong element.
 Never use `decodebin` in a Mira pipeline. After any pipeline change, verify with
 CPU measurement — if a core pegs, it fell back and the pipeline is wrong.
 
-### Open issue: video never links in the VM (2026-09-13)
+### Video in the VM - was broken, now solved (2026-09-13)
 
-In the VM, flutter-pi's GStreamer player hangs on every film: GStreamer warns
+This section records how software-decoded video was made to work under virgl;
+the fixes are patches 0004-0006 below. The original symptom: in the VM,
+flutter-pi's GStreamer player hung on every film. GStreamer warns
 `failed delayed linking some pad of GstURIDecodeBin named src to … queue0`
 (the video branch), audio links, the pipeline never prerolls, and
 `initialize()` never returns. The shell now times out after 30 s and shows the
@@ -250,6 +252,20 @@ after: peak -28 dBFS, RMS -46 dBFS. The Pi's HDMI audio needs the same script.
 To measure, record the speaker sink's monitor with
 `pw-record -P '{ stream.capture.sink=true }' --target <sink>`; recording the
 QEMU stream node directly returns zeros even when it is playing.
+
+**No voices in films - fixed and measured 2026-09-14.** Music and effects
+played but dialogue was missing. Cause, from alsa-lib `pcm_plug.c`: the
+`default` ALSA device accepts any channel count, so GStreamer handed it 5.1 or
+7.1 unchanged, and plug's DEFAULT route policy resolves to COPY for anything but
+mono - channel 0 to left, channel 1 to right, every other channel dropped.
+Dialogue lives in the centre channel. Nearly every film in the library is 5.1
+or 7.1. The shell's pipeline now ends `audio/x-raw,channels=2 ! autoaudiosink`
+so audioconvert downmixes and folds the centre in. Measured in the VM with a
+6-channel WAV carrying a tone on the centre channel only, streamed through
+`uridecodebin` like a film: old chain peak 0 (silence), new chain -20 dBFS.
+The Pi's HDMI audio goes through the same `default` device, so it needs this
+too; multichannel PCM or passthrough to the TV would be a later, deliberate
+change. `gst-launch-1.0` is in the image; `audiotestsrc` is not.
 
 **Subtitles verified the same day**, entirely by d-pad: Down from the scrub bar
 to Play/Pause, right to *Subtitles & audio*, the sheet listing the file's real
@@ -459,8 +475,11 @@ room. Deliberate, keep them:
   backend, the Jellyfin client and DeviceProfile, the home screen and the
   failure screens, and (2026-09-13) the Films grid, Genres view, item detail,
   the subtitles & audio sheet and the player screen - each with a golden.
-  **Not built yet:** Overseerr (Discover shows a "not connected" screen until
-  `overseerrApiKey` is in the config) and first-run enrolment.
+  Since then: Discover (Seerr) with request, cancel and search, Continue
+  Watching and Recently added rails, and the audio/visual fixes below.
+  **Not built yet:** first-run enrolment (the server config is still baked into
+  dev images with `MIRA_DEV_CONFIG`) and the rpi4 target. Discover shows a
+  "not connected" screen when `overseerrApiKey` is missing from the config.
 
   **The request server is Seerr 3.4.1**, not classic Overseerr - the merged
   successor, API-compatible (`/api/v1/...`, `X-Api-Key` header), at
@@ -579,6 +598,16 @@ expensive later:
   not by reading.
 - Fonts are bundled. A Buildroot rootfs has none, so this is load-bearing, not
   styling.
+- **Poster grids use `GridFocus`** (`lib/ui/widgets/grid_focus.dart`): the
+  focused row snaps to the top of the grid, the last rows get enough bottom
+  padding to reach the top too, and Right at the end of a row moves to the next
+  row's first tile (Left mirrors it, except beside the search keyboard).
+  Flutter's own traversal only scrolls until the tile's edge meets the
+  viewport's, which clipped the focus ring and left rows creeping at the bottom.
+- **Horizontal rails use `MiraFocusable.revealMargin`** so the focused poster
+  keeps its ring and a glimpse of the next poster in view, and Right on a
+  rail's last poster continues into the next rail. Don't set `revealMargin` on
+  tiles inside a `GridFocus` grid - its reveal and the row snap would fight.
 
 **The d-pad is the primary input.** Mira is a TV app first: every screen must be
 fully operable with up/down/left/right and OK alone, and the box must stay

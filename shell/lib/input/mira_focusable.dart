@@ -32,9 +32,16 @@ class MiraFocusable extends StatefulWidget {
     this.showRing = true,
     this.debugLabel,
     this.onKey,
+    this.revealMargin,
   });
 
   final FocusedWidgetBuilder builder;
+
+  /// When set, gaining focus scrolls every enclosing scrollable far enough to
+  /// show this control plus the margin. Flutter's traversal only scrolls until
+  /// the control's own edge meets the viewport's, which clips the focus ring -
+  /// it paints outside the bounds - and hides what comes next in a rail.
+  final EdgeInsets? revealMargin;
 
   /// Raw keys while focused, before they become traversal or intents. Only for
   /// controls whose arrows mean something other than "move focus" - the scrub
@@ -73,6 +80,21 @@ class _MiraFocusableState extends State<MiraFocusable> {
 
   void _handleFocusChange(bool focused) {
     if (focused != _focused) setState(() => _focused = focused);
+    final EdgeInsets? margin = widget.revealMargin;
+    if (focused && margin != null) {
+      // After the frame: the traversal's own scroll has been applied by then,
+      // and this only adds the margin on top of it.
+      WidgetsBinding.instance.addPostFrameCallback((Duration _) {
+        if (!mounted || !_node.hasFocus) return;
+        final RenderObject? box = context.findRenderObject();
+        if (box is! RenderBox || !box.hasSize) return;
+        box.showOnScreen(
+          rect: margin.inflateRect(Offset.zero & box.size),
+          duration: MiraMotion.focus,
+          curve: Curves.easeOut,
+        );
+      });
+    }
   }
 
   void _select() {

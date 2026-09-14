@@ -47,11 +47,20 @@ class GstreamerMiraPlayer implements MiraPlayer {
   ///    pipeline never prerolls, and initialize() hangs with no error. Found in
   ///    the VM (H.264 High yuv420p, software decoded). On the Pi's V4L2 path
   ///    the decoder already emits an importable format and this is passthrough.
+  ///
+  ///  * **Audio downmixed to stereo by GStreamer, not by ALSA.** Without the
+  ///    `channels=2` filter a 5.1 or 7.1 film reaches ALSA with every channel,
+  ///    and the `default` device's plug plugin converts to stereo with its COPY
+  ///    route policy: front left to left, front right to right, and every other
+  ///    channel dropped (alsa-lib pcm_plug.c). Dialogue lives in the centre
+  ///    channel, so films played their music and effects with no voices.
+  ///    audioconvert's downmix folds the centre and surrounds in. Found
+  ///    2026-09-14; almost every film in the library is 5.1 or 7.1.
   static String pipelineFor(Uri source) {
     final String uri = source.toString().replaceAll('"', '%22');
     return 'uridecodebin uri="$uri" name="src" '
         'src. ! video/x-raw ! queue ! videoconvert ! appsink sync=true name="sink" '
-        'src. ! audio/x-raw ! queue ! audioconvert ! audioresample ! autoaudiosink';
+        'src. ! audio/x-raw ! queue ! audioconvert ! audioresample ! audio/x-raw,channels=2 ! autoaudiosink';
   }
 
   void _fail(String message, [Object? detail]) {

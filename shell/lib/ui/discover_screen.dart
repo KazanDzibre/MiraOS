@@ -8,6 +8,7 @@ import '../overseerr/overseerr_client.dart';
 import 'discover_search_screen.dart';
 import 'discover_title_screen.dart';
 import 'widgets/chrome.dart';
+import 'widgets/grid_focus.dart';
 import 'widgets/mira_button.dart';
 import 'widgets/poster.dart';
 
@@ -51,6 +52,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   /// never land in the new one.
   int _generation = 0;
 
+  final GridFocus _grid = GridFocus(columns: _columns, debugName: 'discover');
+
   double get _ringRoom => MiraFocusRing.reach + 2;
 
   @override
@@ -58,6 +61,12 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     super.initState();
     _loadFirst();
     debugAssertReachableAfterFrame(context, screen: 'DiscoverScreen');
+  }
+
+  @override
+  void dispose() {
+    _grid.dispose();
+    super.dispose();
   }
 
   Future<void> _loadFirst() async {
@@ -114,6 +123,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
   void _setList(DiscoverList list) {
     if (list == _list) return;
+    // A new list starts at its first row, not wherever the last one was left.
+    if (_grid.scroll.hasClients) _grid.scroll.jumpTo(0);
     setState(() => _list = list);
     _loadFirst();
   }
@@ -232,13 +243,24 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       );
     }
     return LayoutBuilder(builder: (BuildContext context, BoxConstraints c) {
+      const double spacing = 28;
       final double width = (c.maxWidth - _ringRoom * 2 - _gap * (_columns - 1)) / _columns;
       final double height = PosterTile.heightFor(width);
+      _grid
+        ..rowExtent = height + spacing
+        ..mainAxisSpacing = spacing
+        ..itemCount = _titles.length;
       return GridView.builder(
-        padding: EdgeInsets.fromLTRB(_ringRoom, _ringRoom, _ringRoom, _ringRoom),
+        controller: _grid.scroll,
+        padding: EdgeInsets.fromLTRB(
+          _ringRoom,
+          _ringRoom,
+          _ringRoom,
+          _grid.bottomPadding(c.maxHeight, top: _ringRoom, minimum: _ringRoom),
+        ),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: _columns,
-          mainAxisSpacing: 28,
+          mainAxisSpacing: spacing,
           crossAxisSpacing: _gap,
           childAspectRatio: width / height,
         ),
@@ -260,6 +282,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
               title: title,
               width: width,
               autofocus: i == 0,
+              focusNode: _grid.nodeFor(i),
+              onKey: (KeyEvent event) => _grid.handleKey(i, event),
               imageUrl: widget.source.posterFor(title),
               onSelect: () => _open(i),
             ),
@@ -279,6 +303,8 @@ class DiscoverTile extends StatelessWidget {
     required this.onSelect,
     this.imageUrl,
     this.autofocus = false,
+    this.focusNode,
+    this.onKey,
   });
 
   final DiscoverTitle title;
@@ -286,6 +312,8 @@ class DiscoverTile extends StatelessWidget {
   final Uri? imageUrl;
   final VoidCallback onSelect;
   final bool autofocus;
+  final FocusNode? focusNode;
+  final KeyEventResult Function(KeyEvent event)? onKey;
 
   @override
   Widget build(BuildContext context) {
@@ -294,6 +322,8 @@ class DiscoverTile extends StatelessWidget {
     return MiraFocusable(
       onSelect: onSelect,
       autofocus: autofocus,
+      focusNode: focusNode,
+      onKey: onKey,
       showRing: false,
       debugLabel: 'discover:${title.title}',
       builder: (BuildContext context, bool focused) => SizedBox(
