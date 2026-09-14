@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 
 import '../../core/tokens.dart';
 import '../../input/mira_focusable.dart';
+import '../../network/netbird.dart';
 
 /// The layered backdrop that gives the Cinema direction its depth: artwork (or
 /// a tinted field standing in for it), then scrims that guarantee text contrast
@@ -246,6 +247,9 @@ class _Tab extends StatelessWidget {
   }
 }
 
+/// The server's address, and whether the tunnel to it is up. Under a
+/// [NetworkScope] it is focusable - right of the tabs - and OK opens the
+/// connection screen.
 class _NetworkBadge extends StatelessWidget {
   const _NetworkBadge({required this.up, required this.label});
 
@@ -254,7 +258,12 @@ class _NetworkBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    final NetworkScope? scope = NetworkScope.maybeOf(context);
+    final NetbirdStatus? tunnel = scope?.notifier?.value;
+    // Before the first check, and on a machine without NetBird, the tunnel
+    // says nothing - keep what the screen was told.
+    final bool isUp = tunnel == null || tunnel.state == NetbirdState.unavailable ? up : tunnel.isUp;
+    final Widget badge = Row(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
         Container(
@@ -262,12 +271,22 @@ class _NetworkBadge extends StatelessWidget {
           height: 11,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: up ? MiraColors.positive : MiraColors.danger,
+            color: isUp ? MiraColors.positive : MiraColors.danger,
           ),
         ),
         const SizedBox(width: 10),
         Text(label, style: MiraType.status.copyWith(letterSpacing: 1.1)),
       ],
+    );
+    if (scope == null) return badge;
+    return MiraFocusable(
+      onSelect: scope.onOpen,
+      debugLabel: 'network',
+      borderRadius: const BorderRadius.all(Radius.circular(4)),
+      builder: (BuildContext context, bool focused) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: badge,
+      ),
     );
   }
 }

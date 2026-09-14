@@ -6,7 +6,9 @@ import '../ui/discover_screen.dart';
 import '../input/remote.dart';
 import '../jellyfin/jellyfin_client.dart';
 import '../jellyfin/models.dart';
+import '../network/netbird.dart';
 import '../ui/detail_screen.dart';
+import '../ui/network_screen.dart';
 import '../ui/films_screen.dart';
 import '../ui/home_screen.dart';
 import '../ui/player_screen.dart';
@@ -25,9 +27,13 @@ import 'track_choice.dart';
 /// Back is one rule everywhere: on a pushed screen it pops; on a tab other
 /// than Home it returns Home; on Home it does nothing.
 class MiraApp extends StatefulWidget {
-  const MiraApp({super.key, required this.source, this.discover});
+  const MiraApp({super.key, required this.source, this.netbird, this.discover});
 
   final LibrarySource source;
+
+  /// The box's tunnel to the server. Without it the top bar's address is just
+  /// a label, as in tests that render screens with no network at all.
+  final NetbirdControl? netbird;
 
   /// Seerr, when configured. Without it Discover explains what is missing.
   final DiscoverSource? discover;
@@ -39,6 +45,8 @@ class MiraApp extends StatefulWidget {
 class _MiraAppState extends State<MiraApp> {
   final PointerModeController _pointer = PointerModeController();
   final GlobalKey<NavigatorState> _navigator = GlobalKey<NavigatorState>();
+  late final NetbirdMonitor? _netbird =
+      widget.netbird == null ? null : (NetbirdMonitor(widget.netbird!)..start());
 
   /// Bumped whenever a pushed screen closes. Watching, marking watched or
   /// clearing progress all change Continue Watching, and Home must show that
@@ -49,7 +57,24 @@ class _MiraAppState extends State<MiraApp> {
   void dispose() {
     _pointer.dispose();
     _libraryChanged.dispose();
+    _netbird?.dispose();
     super.dispose();
+  }
+
+  /// Every hop to the server, and NetBird sign-in when the tunnel needs it.
+  /// [signIn] goes straight on to the code, with the connection screen behind
+  /// it for Back. Coming back reloads the library: signing in is usually why
+  /// you went.
+  Future<void> _openNetwork({bool signIn = false}) async {
+    final NetbirdMonitor? monitor = _netbird;
+    if (monitor == null) return;
+    await _navigator.currentState?.push(_route((BuildContext _) => NetworkScreen(
+          monitor: monitor,
+          signInFirst: signIn,
+          serverLabel: widget.source.label,
+          checkServer: () => widget.source.movieCount().then((int _) => true),
+        )));
+    _libraryChanged.value++;
   }
 
   Route<void> _route(WidgetBuilder builder) {
@@ -104,7 +129,7 @@ class _MiraAppState extends State<MiraApp> {
         libraryChanged: _libraryChanged,
       ),
       builder: (BuildContext context, Widget? child) {
-        return PointerMode(
+        final Widget app = PointerMode(
           controller: _pointer,
           child: RemoteShortcuts(
             child: Actions(
@@ -124,6 +149,8 @@ class _MiraAppState extends State<MiraApp> {
             ),
           ),
         );
+        final NetbirdMonitor? monitor = _netbird;
+        return monitor == null ? app : NetworkScope(monitor: monitor, onOpen: _openNetwork, child: app);
       },
     );
   }
@@ -237,19 +264,7 @@ class _RootState extends State<_Root> {
           onSecondary: _load,
           technical: 'jellyfin · ${widget.source.label} · 0 in progress',
         ),
-      _Phase.unreachable => MiraStateScreen(
-          glyph: MiraGlyph.serverDown,
-          title: 'Your server is not answering',
-          body: 'The tunnel may be up while Jellyfin itself is off, restarting, '
-              'or listening somewhere else.',
-          rows: const <StatusRow>[
-            StatusRow(label: 'NetBird', value: 'connected', tone: StatusTone.good),
-            StatusRow(label: 'Jellyfin', value: 'no response', tone: StatusTone.bad),
-          ],
-          primaryAction: 'Retry now',
-          onPrimary: _load,
-          technical: _technical,
-        ),
+      _Phase.unreachable => _unreachable(),
       _Phase.refused => MiraStateScreen(
           glyph: MiraGlyph.networkDown,
           title: 'Mira could not sign in',
@@ -260,6 +275,62 @@ class _RootState extends State<_Root> {
           technical: _technical,
         ),
     };
+  }
+
+  /// The server did not answer. When the tunnel is why, say so and offer the
+  /// fix - NetBird sign-in - instead of blaming the server.
+  Widget _unreachable() {
+    final NetworkScope? scope = NetworkScope.maybeOf(context);
+    final NetbirdStatus? tunnel = scope?.notifier?.value;
+    final NetbirdState? state = tunnel?.state;
+    if (scope != null &&
+        (state == NetbirdState.signedOut || state == NetbirdState.stopped || state == NetbirdState.connecting)) {
+      final bool signedOut = state == NetbirdState.signedOut;
+      return MiraStateScreen(
+        glyph: MiraGlyph.networkDown,
+        title: 'Not on your network',
+        body: signedOut
+            ? 'This box is signed out of NetBird, so your server cannot be '
+                'reached from here. Sign in from your phone and Mira carries on.'
+            : 'The NetBird tunnel is down, so your server cannot be reached '
+                'from here. Nothing is lost - Mira keeps trying on its own.',
+        rows: <StatusRow>[
+          StatusRow(
+            label: 'NetBird',
+            value: switch (state) {
+              NetbirdState.signedOut => 'signed out',
+              NetbirdState.connecting => 'connecting',
+              _ => 'not running',
+            },
+            tone: state == NetbirdState.connecting ? StatusTone.neutral : StatusTone.bad,
+          ),
+          const StatusRow(label: 'Jellyfin', value: 'waiting for the tunnel'),
+        ],
+        primaryAction: signedOut ? 'Sign in to NetBird' : 'Retry now',
+        onPrimary: signedOut ? () => scope.onOpen(signIn: true) : _load,
+        secondaryAction: 'Network details',
+        onSecondary: scope.onOpen,
+        technical: tunnel?.detail ?? _technical,
+      );
+    }
+    return MiraStateScreen(
+      glyph: MiraGlyph.serverDown,
+      title: 'Your server is not answering',
+      body: 'The tunnel may be up while Jellyfin itself is off, restarting, '
+          'or listening somewhere else.',
+      rows: <StatusRow>[
+        // Without a NetBird on this machine the tunnel is the host's; the
+        // server not answering is the only thing known.
+        if (state == null || state == NetbirdState.connected)
+          const StatusRow(label: 'NetBird', value: 'connected', tone: StatusTone.good),
+        const StatusRow(label: 'Jellyfin', value: 'no response', tone: StatusTone.bad),
+      ],
+      primaryAction: 'Retry now',
+      onPrimary: _load,
+      secondaryAction: scope == null ? null : 'Network details',
+      onSecondary: scope?.onOpen,
+      technical: _technical,
+    );
   }
 
   Widget _discover() {

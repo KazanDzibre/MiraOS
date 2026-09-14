@@ -132,7 +132,7 @@ class MiraStateScreen extends StatelessWidget {
                         ),
                         if (rows.isNotEmpty) ...<Widget>[
                           const SizedBox(height: 34),
-                          _StatusCard(rows: rows),
+                          StatusCard(rows: rows),
                         ],
                         const SizedBox(height: 42),
                         Row(
@@ -177,8 +177,8 @@ class MiraStateScreen extends StatelessWidget {
   }
 }
 
-class _StatusCard extends StatelessWidget {
-  const _StatusCard({required this.rows});
+class StatusCard extends StatelessWidget {
+  const StatusCard({required this.rows});
 
   final List<StatusRow> rows;
 

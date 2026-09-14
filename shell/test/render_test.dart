@@ -8,6 +8,8 @@ import 'package:mira_shell/core/mira_app.dart';
 import 'package:mira_shell/core/tokens.dart';
 import 'package:mira_shell/input/pointer_mode.dart';
 import 'package:mira_shell/jellyfin/models.dart';
+import 'package:mira_shell/network/netbird.dart';
+import 'package:mira_shell/ui/network_screen.dart';
 import 'package:mira_shell/core/track_choice.dart';
 import 'package:mira_shell/input/mira_focusable.dart';
 import 'package:mira_shell/overseerr/discover_source.dart';
@@ -550,6 +552,52 @@ void main() {
     expect(saved.audio, isNull);
 
     await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('signed out of NetBird: sign in by code, then back to a connected tunnel', (WidgetTester tester) async {
+    sizeToTv(tester);
+    final NetbirdMonitor monitor = NetbirdMonitor(FakeNetbird(signInDelay: const Duration(seconds: 2)));
+    await tester.pumpWidget(_harness(Navigator(
+      onGenerateRoute: (RouteSettings _) => PageRouteBuilder<void>(
+        pageBuilder: (BuildContext c, Animation<double> a, Animation<double> b) => NetworkScreen(
+          monitor: monitor,
+          serverLabel: '192.168.100.34',
+          checkServer: () async => false,
+        ),
+      ),
+    )));
+    await tester.pumpAndSettle();
+    expect(find.text('Not signed in to NetBird'), findsOneWidget);
+    // The screen's own node, shared by whichever action comes first.
+    expect(FocusManager.instance.primaryFocus?.debugLabel, 'network:primary',
+        reason: 'the one thing to do was not focused');
+    expect(find.text('Sign in to NetBird'), findsOneWidget);
+    await expectLater(find.byType(NetworkScreen), matchesGoldenFile('goldens/network_signed_out.png'));
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(FocusManager.instance.primaryFocus?.debugLabel, 'button:New code',
+        reason: 'nothing on the sign-in screen had focus, so the remote was stranded');
+    expect(find.text('KXQM-2PLD'), findsNothing, reason: 'the code is shown as tiles, not one string');
+    expect(find.text('Q'), findsOneWidget);
+    await expectLater(find.byType(NetbirdSignInScreen), matchesGoldenFile('goldens/netbird_signin.png'));
+
+    // The fake signs in after two seconds; the screen says so, then returns.
+    await tester.pump(const Duration(seconds: 2));
+    expect(find.text('Signed in. Bringing the tunnel up…'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 1300));
+    await tester.pumpAndSettle();
+    expect(find.byType(NetbirdSignInScreen), findsNothing);
+    expect(find.text('Connected to your network'), findsOneWidget);
+    expect(FocusManager.instance.primaryFocus?.debugLabel, 'network:primary',
+        reason: 'focus was lost when Sign in turned into Check again');
+    expect(find.text('Check again'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    monitor.dispose();
   });
 
   testWidgets('player overlay renders with subtitles', (WidgetTester tester) async {
