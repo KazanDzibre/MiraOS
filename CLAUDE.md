@@ -374,6 +374,19 @@ for it (resume, from start, subtitles, mark watched). Things to know:
 - Items/Resume already returns episodes alongside films.
 Shape of the JSON: `tool/probe_shows.dart` (read-only).
 
+**The focused title's backdrop replaces the tint (2026-09-15)** on Home and in
+the Films/Shows/Anime grids, via `lib/ui/widgets/focus_artwork.dart` in
+`MiraBackdrop.art`. It waits 220 ms for focus to settle, decodes at 720 px
+high, and keeps the previous image until the next is decoded, then crossfades
+- holding an arrow must not decode a backdrop per poster on a Pi. Home shows
+it at full strength under its scrims; grids at 0.3, because posters and grey
+captions sit directly on it (0.45 washed out captions over 2001's white
+corridor). Found in the VM: `AnimatedSwitcher`'s default layout stacks its
+child loosely, so the image sized itself into a box behind the hero - the
+switcher needs a `StackFit.expand` layout and a `SizedBox.expand` child.
+Demo titles have no artwork, so goldens do not exercise any of this.
+Restore point before the change: git tag `before-focus-artwork`.
+
 ### NetBird (tunnel to the home server)
 
 `netbird` 0.78.2 (client only) is packaged in `buildroot-external/package/netbird/`

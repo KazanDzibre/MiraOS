@@ -7,6 +7,7 @@ import '../input/focus_debug.dart';
 import '../jellyfin/models.dart';
 import 'widgets/chrome.dart';
 import 'widgets/mira_button.dart';
+import 'widgets/focus_artwork.dart';
 import 'widgets/poster.dart';
 
 /// The Cinema home: the focused item fills the screen behind everything, with
@@ -204,6 +205,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return MiraBackdrop(
       tint: placeholderArt(current.id).colors.first,
+      art: FocusArtwork(url: widget.source.backdropFor(current, maxHeight: 1080)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[

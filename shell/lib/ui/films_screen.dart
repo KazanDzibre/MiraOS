@@ -7,6 +7,7 @@ import '../input/mira_focusable.dart';
 import '../jellyfin/jellyfin_client.dart';
 import '../jellyfin/models.dart';
 import 'widgets/chrome.dart';
+import 'widgets/focus_artwork.dart';
 import 'widgets/grid_focus.dart';
 import 'widgets/mira_button.dart';
 import 'widgets/poster.dart';
@@ -111,6 +112,9 @@ class _FilmsScreenState extends State<FilmsScreen> {
   bool _loadingMore = false;
   String? _error;
   List<GenreCount>? _genres;
+
+  /// The poster with focus, whose backdrop is drawn behind the grid.
+  MediaItem? _focused;
 
   late final GridFocus _filmFocus = GridFocus(columns: _columns, debugName: _catalog.debugName);
   final GridFocus _genreFocus = GridFocus(columns: _genreColumns, debugName: 'genres');
@@ -217,9 +221,19 @@ class _FilmsScreenState extends State<FilmsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final MediaItem? focused = _focused;
     return MiraBackdrop(
       tint: const Color(0xFF22454A),
       horizontalScrim: false,
+      // Dimmed: here the posters and grey captions sit on it, not text on a
+      // scrim. At 0.45 a bright backdrop (2001's white corridor) washed out
+      // the film count and captions in the VM.
+      art: FocusArtwork(
+        url: _mode == _Mode.all && focused != null
+            ? widget.source.backdropFor(focused, maxHeight: 1080)
+            : null,
+        opacity: 0.3,
+      ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(MiraMetrics.safeH, MiraMetrics.safeV, MiraMetrics.safeH, 0),
         child: Column(
@@ -326,14 +340,21 @@ class _FilmsScreenState extends State<FilmsScreen> {
             WidgetsBinding.instance.addPostFrameCallback((Duration _) => _loadMore());
           }
           final MediaItem item = _items[i];
-          return PosterTile(
-            item: item,
-            width: width,
-            autofocus: i == 0,
-            focusNode: _filmFocus.nodeFor(i),
-            onKey: (KeyEvent event) => _filmFocus.handleKey(i, event),
-            imageUrl: widget.source.posterFor(item, maxHeight: height.round()),
-            onSelect: () => widget.onOpen(item),
+          return Focus(
+            canRequestFocus: false,
+            skipTraversal: true,
+            onFocusChange: (bool focused) {
+              if (focused && _focused?.id != item.id) setState(() => _focused = item);
+            },
+            child: PosterTile(
+              item: item,
+              width: width,
+              autofocus: i == 0,
+              focusNode: _filmFocus.nodeFor(i),
+              onKey: (KeyEvent event) => _filmFocus.handleKey(i, event),
+              imageUrl: widget.source.posterFor(item, maxHeight: height.round()),
+              onSelect: () => widget.onOpen(item),
+            ),
           );
         },
       );
