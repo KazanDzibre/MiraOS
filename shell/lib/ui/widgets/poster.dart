@@ -153,7 +153,7 @@ class PosterTile extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
                     Text(
-                      item.name,
+                      item.displayTitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: focused ? MiraType.tileTitle : MiraType.tileTitleIdle,
@@ -188,7 +188,10 @@ class PosterTile extends StatelessWidget {
 
   static String _focusedMeta(MediaItem item) {
     final List<String> parts = <String>[
+      if (item.episodeLabel != null) item.episodeLabel!,
       if (item.productionYear != null) '${item.productionYear}',
+      if (item.isSeries && item.childCount != null)
+        '${item.childCount} season${item.childCount == 1 ? '' : 's'}',
       if (item.likelyDirectPlay && item.videoCodec != null)
         '${item.videoCodec!.toUpperCase()} ${item.height != null && item.height! > 1080 ? '4K' : 'HD'}',
     ];

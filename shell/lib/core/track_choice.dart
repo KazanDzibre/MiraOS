@@ -48,6 +48,12 @@ class TrackChoice {
     for (final MediaTrack t in tracks) {
       if (t.index == index && (t.language ?? '') == parts[1] && (t.codec ?? '') == parts[2]) return t;
     }
+    // The same language and format at another index: a show's choice applied
+    // to one of its other episodes, whose files number their tracks alike but
+    // not always identically.
+    for (final MediaTrack t in tracks) {
+      if ((t.language ?? '') == parts[1] && (t.codec ?? '') == parts[2]) return t;
+    }
     return null;
   }
 }

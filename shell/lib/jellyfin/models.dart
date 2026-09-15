@@ -78,7 +78,59 @@ class MediaItem {
     this.mediaSourceId,
     this.providerIds = const <String, String>{},
     this.tracks = const <MediaTrack>[],
+    this.type,
+    this.seriesId,
+    this.seriesName,
+    this.seriesPrimaryImageTag,
+    this.seasonId,
+    this.indexNumber,
+    this.parentIndexNumber,
+    this.childCount,
+    this.unplayedCount,
+    this.played = false,
+    this.endYear,
+    this.parentBackdropItemId,
+    this.parentBackdropImageTag,
   });
+
+  /// Jellyfin's item type: Movie, Series, Season or Episode.
+  final String? type;
+
+  /// For seasons and episodes: the show they belong to.
+  final String? seriesId;
+  final String? seriesName;
+  final String? seriesPrimaryImageTag;
+  final String? seasonId;
+
+  /// Episode number, or season number for a season.
+  final int? indexNumber;
+
+  /// An episode's season number.
+  final int? parentIndexNumber;
+
+  /// A series' season count, or a season's episode count.
+  final int? childCount;
+  final int? unplayedCount;
+  final bool played;
+  final int? endYear;
+
+  /// Seasons and episodes have no backdrop of their own; the show's stands in.
+  final String? parentBackdropItemId;
+  final String? parentBackdropImageTag;
+
+  bool get isSeries => type == 'Series';
+  bool get isEpisode => type == 'Episode';
+
+  /// "S1 E3", or null when either number is missing.
+  String? get episodeLabel => !isEpisode || indexNumber == null
+      ? null
+      : parentIndexNumber == null
+          ? 'E$indexNumber'
+          : 'S$parentIndexNumber E$indexNumber';
+
+  /// What a poster or hero calls this: the show's name for an episode, since
+  /// "The Fall of Shiganshina (1)" alone says nothing from the sofa.
+  String get displayTitle => isEpisode && seriesName != null ? seriesName! : name;
 
   final String id;
   final String name;
@@ -182,6 +234,22 @@ class MediaItem {
       mediaSourceId: sourceId,
       providerIds: providers,
       tracks: tracks,
+      type: json['Type'] as String?,
+      seriesId: json['SeriesId'] as String?,
+      seriesName: json['SeriesName'] as String?,
+      seriesPrimaryImageTag: json['SeriesPrimaryImageTag'] as String?,
+      seasonId: json['SeasonId'] as String?,
+      indexNumber: json['IndexNumber'] as int?,
+      parentIndexNumber: json['ParentIndexNumber'] as int?,
+      childCount: json['ChildCount'] as int?,
+      unplayedCount: userData?['UnplayedItemCount'] as int?,
+      played: userData?['Played'] == true,
+      endYear: DateTime.tryParse(json['EndDate'] as String? ?? '')?.year,
+      parentBackdropItemId: json['ParentBackdropItemId'] as String?,
+      parentBackdropImageTag: json['ParentBackdropImageTags'] is List &&
+              (json['ParentBackdropImageTags']! as List<Object?>).isNotEmpty
+          ? (json['ParentBackdropImageTags']! as List<Object?>).first as String?
+          : null,
     );
   }
 
@@ -196,6 +264,19 @@ class MediaItem {
     if (tags is List && tags.isNotEmpty) return tags.first as String?;
     return null;
   }
+}
+
+/// One library on the server, as the user sees it in Jellyfin.
+class LibraryView {
+  const LibraryView({required this.id, required this.name, this.collectionType});
+
+  final String id;
+  final String name;
+
+  /// movies, tvshows, boxsets, music...
+  final String? collectionType;
+
+  bool get isShows => collectionType == 'tvshows';
 }
 
 /// A subtitle the server found on OpenSubtitles through its plugin.

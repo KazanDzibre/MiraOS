@@ -12,6 +12,7 @@ import '../ui/network_screen.dart';
 import '../ui/films_screen.dart';
 import '../ui/home_screen.dart';
 import '../ui/player_screen.dart';
+import '../ui/series_screen.dart';
 import '../ui/state_screen.dart';
 import '../ui/widgets/chrome.dart';
 import 'library_source.dart';
@@ -87,12 +88,21 @@ class _MiraAppState extends State<MiraApp> {
     );
   }
 
+  /// A film or episode opens its page; a show opens its seasons and episodes.
   Future<void> _openDetail(MediaItem item) async {
-    await _navigator.currentState?.push(_route((BuildContext _) => DetailScreen(
-          source: widget.source,
-          item: item,
-          onPlay: _openPlayer,
-        )));
+    await _navigator.currentState?.push(_route((BuildContext _) => item.isSeries
+        ? SeriesScreen(
+            source: widget.source,
+            series: item,
+            onOpen: _openDetail,
+            onPlay: _openPlayer,
+            libraryChanged: _libraryChanged,
+          )
+        : DetailScreen(
+            source: widget.source,
+            item: item,
+            onPlay: _openPlayer,
+          )));
     _libraryChanged.value++;
   }
 
@@ -184,6 +194,24 @@ class _RootState extends State<_Root> {
   List<MediaItem> _recent = const <MediaItem>[];
   String? _technical;
 
+  /// The server's libraries. Each shows library is a tab of its own.
+  List<LibraryView> _libraries = const <LibraryView>[];
+
+  static const List<String> _fixedTabs = <String>['Home', 'Discover', 'Films'];
+
+  List<String> get _tabs => <String>[
+        ..._fixedTabs,
+        for (final LibraryView l in _libraries)
+          if (l.isShows && !_fixedTabs.contains(l.name)) l.name,
+      ];
+
+  LibraryView? _showsLibrary(String tab) {
+    for (final LibraryView l in _libraries) {
+      if (l.isShows && l.name == tab && !_fixedTabs.contains(tab)) return l;
+    }
+    return null;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -216,12 +244,17 @@ class _RootState extends State<_Root> {
       // other.
       final Future<List<MediaItem>> resume = widget.source.continueWatching();
       final Future<List<MediaItem>> recent = widget.source.recentlyAdded();
+      // A library list that fails costs the extra tabs, never Home itself.
+      final Future<List<LibraryView>> libraries =
+          widget.source.libraries().catchError((Object _) => const <LibraryView>[]);
       final List<MediaItem> items = await resume;
       final List<MediaItem> latest = await recent;
+      final List<LibraryView> views = await libraries;
       if (!mounted) return;
       setState(() {
         _items = items;
         _recent = latest;
+        _libraries = views;
         // "Nothing to continue" only when there is also nothing new to show.
         _phase = items.isEmpty && latest.isEmpty ? _Phase.empty : _Phase.ready;
       });
@@ -351,19 +384,30 @@ class _RootState extends State<_Root> {
 
   @override
   Widget build(BuildContext context) {
-    final Widget content = switch (_tab) {
-      'Films' => FilmsScreen(source: widget.source, onOpen: widget.onOpen, onTab: _setTab),
-      'Discover' => _discover(),
-      _ => _home(),
-    };
-    return Actions(
+    final LibraryView? shows = _showsLibrary(_tab);
+    final Widget content = shows != null
+        ? FilmsScreen(
+            source: widget.source,
+            catalog: Catalog.shows(widget.source, shows),
+            onOpen: widget.onOpen,
+            onTab: _setTab,
+          )
+        : switch (_tab) {
+            'Films' => FilmsScreen(source: widget.source, onOpen: widget.onOpen, onTab: _setTab),
+            'Discover' => _discover(),
+            _ => _home(),
+          };
+    return MiraTabs(
+      tabs: _tabs,
+      child: Actions(
       actions: <Type, Action<Intent>>{
         BackIntent: CallbackAction<BackIntent>(onInvoke: (BackIntent _) {
           if (_tab != 'Home') _setTab('Home');
           return null;
         }),
       },
-      child: KeyedSubtree(key: ValueKey<String>(_tab), child: content),
+        child: KeyedSubtree(key: ValueKey<String>(_tab), child: content),
+      ),
     );
   }
 }

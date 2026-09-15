@@ -23,6 +23,7 @@ import 'package:mira_shell/ui/detail_screen.dart';
 import 'package:mira_shell/ui/films_screen.dart';
 import 'package:mira_shell/ui/home_screen.dart';
 import 'package:mira_shell/ui/player_screen.dart';
+import 'package:mira_shell/ui/series_screen.dart';
 import 'package:mira_shell/ui/tracks_sheet.dart';
 import 'package:mira_shell/ui/state_screen.dart';
 import 'package:mira_shell/ui/widgets/chrome.dart';
@@ -261,6 +262,100 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     await expectLater(find.byType(FilmsScreen), matchesGoldenFile('goldens/films.png'));
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('the shows libraries get tabs of their own, named as on the server', (WidgetTester tester) async {
+    sizeToTv(tester);
+    await tester.pumpWidget(const MiraApp(source: DemoLibrarySource()));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+    expect(find.text('Shows'), findsOneWidget);
+    expect(find.text('Anime'), findsOneWidget);
+    // The movies library is the Films tab, not a second one.
+    expect(find.text('Movies'), findsNothing);
+    await expectLater(find.byType(MiraApp), matchesGoldenFile('goldens/home.png'));
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('shows grid renders', (WidgetTester tester) async {
+    sizeToTv(tester);
+    const DemoLibrarySource source = DemoLibrarySource();
+    await tester.pumpWidget(_harness(FilmsScreen(
+      source: source,
+      catalog: Catalog.shows(source, DemoLibrarySource.demoShows),
+      onOpen: (_) {},
+    )));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(FocusManager.instance.primaryFocus?.debugLabel, 'shows-0');
+    expect(find.text('2 shows'), findsOneWidget);
+    expect(find.text('All shows'), findsOneWidget);
+    await expectLater(find.byType(FilmsScreen), matchesGoldenFile('goldens/shows.png'));
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('series page: play next, pick a season, open an episode, all by d-pad', (WidgetTester tester) async {
+    sizeToTv(tester);
+    final MediaItem series = await demoItem(tester, 'demo-harbour');
+    MediaItem? opened;
+    MediaItem? played;
+    bool? playedFromStart;
+    await tester.pumpWidget(_harness(SeriesScreen(
+      source: const DemoLibrarySource(),
+      series: series,
+      onOpen: (MediaItem e) => opened = e,
+      onPlay: (MediaItem e, {required bool fromStart, TrackChoice? choice}) {
+        played = e;
+        playedFromStart = fromStart;
+      },
+    )));
+    // Seasons and next-up, then the season's episodes: three demo round trips.
+    for (int i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 150));
+    }
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(FocusManager.instance.primaryFocus?.debugLabel, 'series:primary');
+    expect(find.text('Resume S1 E3'), findsOneWidget, reason: 'the button did not offer the half-watched episode');
+    await expectLater(find.byType(SeriesScreen), matchesGoldenFile('goldens/series.png'));
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    expect(played?.episodeLabel, 'S1 E3');
+    expect(playedFromStart, isFalse, reason: 'a half-watched episode should resume');
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pumpAndSettle();
+    expect(FocusManager.instance.primaryFocus?.debugLabel, 'season:Season 1');
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pumpAndSettle();
+    expect(FocusManager.instance.primaryFocus?.debugLabel, 'episode-2',
+        reason: 'Down from the seasons did not land on the episode to watch next');
+    expect(find.text('S1 E3   ·   Salt in the Gears'), findsOneWidget, reason: 'the caption did not follow focus');
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    expect(opened?.episodeLabel, 'S1 E3');
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+    await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pumpAndSettle();
+    expect(FocusManager.instance.primaryFocus?.debugLabel, 'season:Season 2');
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    for (int i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 150));
+    }
+    await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    expect(opened?.episodeLabel, 'S2 E1', reason: 'Season 2 did not show its own episodes');
+
     await tester.pumpWidget(const SizedBox.shrink());
   });
 

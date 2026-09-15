@@ -490,6 +490,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   Widget _overlayLayer() {
     final Color clear = MiraColors.scrim.withValues(alpha: 0);
     final List<String> meta = <String>[
+      if (_item.episodeLabel != null) '${_item.episodeLabel}  ${_item.name}',
       if (_item.productionYear != null) '${_item.productionYear}',
       if (_plan != null) _plan!.isDirectPlay ? 'Direct play' : 'Server transcoding',
       if (_choice.subtitle != null) 'Subtitles: ${trackName(_choice.subtitle!)}',
@@ -530,7 +531,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
             children: <Widget>[
               const Text('NOW PLAYING', style: MiraType.sectionLabel),
               const SizedBox(height: 14),
-              Text(_item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: MiraType.screenTitle),
+              Text(_item.displayTitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: MiraType.screenTitle),
               const SizedBox(height: 12),
               Text(meta.join('   ·   '), style: MiraType.meta),
               const Spacer(),

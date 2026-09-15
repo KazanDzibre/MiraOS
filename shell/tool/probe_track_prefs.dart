@@ -25,10 +25,10 @@ Future<void> main() async {
     await client.authenticate(username: cfg['username']! as String, password: cfg['password']! as String);
     final MediaItem film = await client.item((await client.movies(limit: 1)).first.id);
     stdout.writeln('film:    ${film.name}');
-    stdout.writeln('before:  ${await client.itemPrefs(film)}');
+    stdout.writeln('before:  ${await client.itemPrefs(film.id)}');
 
-    await client.setItemPrefs(film, const TrackChoice().toPrefs());
-    final Map<String, String> after = await client.itemPrefs(film);
+    await client.setItemPrefs(film.id, const TrackChoice().toPrefs());
+    final Map<String, String> after = await client.itemPrefs(film.id);
     stdout.writeln('after:   $after');
 
     final TrackChoice back = TrackChoice.fromPrefs(after, film);

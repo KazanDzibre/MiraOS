@@ -344,7 +344,35 @@ ignored, not mis-picked). Server-side so it survives a reflash and the VM's
 RAM-only root. That endpoint takes the whole preferences object and also
 carries jellyfin-web's user settings (`skipForwardLength` and friends), so
 `setItemPrefs` sends back everything it read. Verified with
-`tool/probe_track_prefs.dart`.
+`tool/probe_track_prefs.dart`. For an episode the choice is also saved on its
+series, and an episode with none of its own takes the series' - matched by
+language and format when the index differs - so a subtitle language picked
+once carries through the show.
+
+**Shows and Anime (2026-09-15).** Every `tvshows` library on the server gets
+a top-bar tab named as it is in Jellyfin (the real server has *Shows*: 4
+series, 174 episodes, and *Anime*: Attack on Titan, 5 seasons, 89 episodes -
+`tool/probe_libraries.dart`). `_Root` loads `/Users/{id}/Views` with the rails
+and hands the tab list down through `MiraTabs`; the movies library stays the
+Films tab. A shows tab is `FilmsScreen` with `Catalog.shows` - same grid,
+genres view and paging, `IncludeItemTypes=Series` + `ParentId` - not a copy.
+A series opens `SeriesScreen`: backdrop and details, a primary button that
+plays `/Shows/NextUp` (Resume S1 E3 / Play S1 E21), season chips, a row of
+16:9 episode stills that starts at the next-up episode, and the focused
+episode's title and synopsis under it. OK on an episode opens `DetailScreen`
+for it (resume, from start, subtitles, mark watched). Things to know:
+- **Up from an episode goes to the season being shown, explicitly.** The row
+  scrolls under the chips, so the directional policy picked whichever chip was
+  nearest - usually the next season.
+- Jellyfin lists a "Season Unknown" (no `IndexNumber`) for loose files; it is
+  shown as *Extras*, season 0 as *Specials*, and a never-started show opens on
+  its first numbered season.
+- Episodes have 16:9 `Primary` images and no backdrop: `thumbFor` is the
+  still, `posterFor` is the series poster (so Continue Watching's portrait
+  tiles work), `backdropFor` falls back to `ParentBackdropItemId`. Posters and
+  heroes title an episode by its series (`MediaItem.displayTitle`).
+- Items/Resume already returns episodes alongside films.
+Shape of the JSON: `tool/probe_shows.dart` (read-only).
 
 ### NetBird (tunnel to the home server)
 

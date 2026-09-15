@@ -350,7 +350,7 @@ class _Hero extends StatelessWidget {
     // and with the Recently added rail below it the hero overflowed its
     // buttons in the VM.
     final TextPainter title = TextPainter(
-      text: TextSpan(text: item.name, style: MiraType.hero),
+      text: TextSpan(text: item.displayTitle, style: MiraType.hero),
       maxLines: 2,
       textDirection: TextDirection.ltr,
       textScaler: MediaQuery.textScalerOf(context),
@@ -371,7 +371,7 @@ class _Hero extends StatelessWidget {
           Text(label, style: MiraType.sectionLabel),
           const SizedBox(height: 20),
           Text(
-            item.name,
+            item.displayTitle,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: MiraType.hero,

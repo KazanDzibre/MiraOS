@@ -140,7 +140,7 @@ class JellyfinClient {
   }
 
   static const String _fields =
-      'Overview,Genres,MediaStreams,MediaSources,ProductionYear,OfficialRating,ProviderIds';
+      'Overview,Genres,MediaStreams,MediaSources,ProductionYear,OfficialRating,ProviderIds,ChildCount';
 
   Future<void> authenticate({
     required String username,
@@ -202,18 +202,38 @@ class JellyfinClient {
     ));
   }
 
-  /// All films, a page at a time, optionally narrowed to one genre.
+  /// The user's libraries, in their Jellyfin order.
+  Future<List<LibraryView>> libraries() async {
+    _requireSession();
+    final Object? items = _asMap(await _send('GET', _uri('/Users/$_userId/Views')))['Items'];
+    if (items is! List) return const <LibraryView>[];
+    return <LibraryView>[
+      for (final Object? i in items)
+        if (i is Map && i['Id'] is String)
+          LibraryView(
+            id: i['Id']! as String,
+            name: (i['Name'] as String?) ?? 'Library',
+            collectionType: i['CollectionType'] as String?,
+          ),
+    ];
+  }
+
+  /// All films, a page at a time, optionally narrowed to one genre. With
+  /// [type] `Series` and a [parentId], the shows of one library instead.
   Future<List<MediaItem>> movies({
     int startIndex = 0,
     int limit = 60,
     String? genre,
+    String type = 'Movie',
+    String? parentId,
   }) async {
     _requireSession();
     return _itemsFrom(await _send(
       'GET',
       _uri('/Users/$_userId/Items', <String, String>{
-        'IncludeItemTypes': 'Movie',
+        'IncludeItemTypes': type,
         'Recursive': 'true',
+        if (parentId != null) 'ParentId': parentId,
         'SortBy': 'SortName',
         'SortOrder': 'Ascending',
         'StartIndex': '$startIndex',
@@ -225,13 +245,14 @@ class JellyfinClient {
     ));
   }
 
-  Future<int> movieCount({String? genre}) async {
+  Future<int> movieCount({String? genre, String type = 'Movie', String? parentId}) async {
     _requireSession();
     final Map<String, Object?> data = _asMap(await _send(
       'GET',
       _uri('/Users/$_userId/Items', <String, String>{
-        'IncludeItemTypes': 'Movie',
+        'IncludeItemTypes': type,
         'Recursive': 'true',
+        if (parentId != null) 'ParentId': parentId,
         'Limit': '0',
         if (genre != null) 'Genres': genre,
       }),
@@ -239,12 +260,51 @@ class JellyfinClient {
     return (data['TotalRecordCount'] as int?) ?? 0;
   }
 
+  /// A show's seasons in order, including "Season Unknown" for loose files.
+  Future<List<MediaItem>> seasons(String seriesId) async {
+    _requireSession();
+    return _itemsFrom(await _send(
+      'GET',
+      _uri('/Shows/$seriesId/Seasons', <String, String>{'userId': _userId!, 'Fields': 'ChildCount'}),
+    ));
+  }
+
+  /// One season's episodes. Overview only: the episode page fetches the full
+  /// track list when it opens, and thirty episodes' streams is a lot of JSON.
+  Future<List<MediaItem>> episodes(String seriesId, String seasonId) async {
+    _requireSession();
+    return _itemsFrom(await _send(
+      'GET',
+      _uri('/Shows/$seriesId/Episodes', <String, String>{
+        'userId': _userId!,
+        'seasonId': seasonId,
+        'Fields': 'Overview',
+      }),
+    ));
+  }
+
+  /// The episode to watch next: the part-watched one, or the first unwatched
+  /// after the last watched. Null when there is none.
+  Future<MediaItem?> nextUp(String seriesId) async {
+    _requireSession();
+    final List<MediaItem> items = _itemsFrom(await _send(
+      'GET',
+      _uri('/Shows/NextUp', <String, String>{
+        'userId': _userId!,
+        'seriesId': seriesId,
+        'Limit': '1',
+        'Fields': 'Overview',
+      }),
+    ));
+    return items.isEmpty ? null : items.first;
+  }
+
   /// Genres counted from the films themselves, most common first.
   ///
   /// Jellyfin's `/Genres` endpoint can come back empty even when every film
   /// carries genres - it does on the server this was built against - so the
   /// count is taken from the films rather than trusted to that endpoint.
-  Future<List<GenreCount>> movieGenres() async {
+  Future<List<GenreCount>> movieGenres({String type = 'Movie', String? parentId}) async {
     _requireSession();
     const int page = 200;
     final Map<String, int> counts = <String, int>{};
@@ -252,7 +312,8 @@ class JellyfinClient {
       final Map<String, Object?> data = _asMap(await _send(
         'GET',
         _uri('/Users/$_userId/Items', <String, String>{
-          'IncludeItemTypes': 'Movie',
+          'IncludeItemTypes': type,
+          if (parentId != null) 'ParentId': parentId,
           'Recursive': 'true',
           'Fields': 'Genres',
           'EnableImages': 'false',
@@ -345,10 +406,23 @@ class JellyfinClient {
     MediaItem item, {
     String kind = 'Primary',
     int? maxHeight,
+  }) =>
+      imageUrlById(
+        item.id,
+        kind: kind,
+        tag: kind == 'Primary' ? item.primaryImageTag : item.backdropImageTag,
+        maxHeight: maxHeight,
+      );
+
+  /// Another item's image by id - a show's poster or backdrop standing in for
+  /// one of its episodes.
+  Uri imageUrlById(
+    String id, {
+    String kind = 'Primary',
+    String? tag,
+    int? maxHeight,
   }) {
-    final String? tag =
-        kind == 'Primary' ? item.primaryImageTag : item.backdropImageTag;
-    return _uri('/Items/${item.id}/Images/$kind', <String, String>{
+    return _uri('/Items/$id/Images/$kind', <String, String>{
       if (tag != null) 'tag': tag,
       // Ask for what is actually displayed. Decoding a full-size poster costs
       // more than the whole UI does.
@@ -467,12 +541,12 @@ class JellyfinClient {
   /// This client's settings for one film, kept by the server in the user's
   /// display preferences. On the server rather than on the box: they survive a
   /// reflash, and the VM, which runs from RAM, keeps them across reboots.
-  Uri _prefsUri(MediaItem item) => _uri('/DisplayPreferences/${item.id}',
+  Uri _prefsUri(String itemId) => _uri('/DisplayPreferences/$itemId',
       <String, String>{'userId': _userId!, 'client': 'mira'});
 
-  Future<Map<String, String>> itemPrefs(MediaItem item) async {
+  Future<Map<String, String>> itemPrefs(String itemId) async {
     _requireSession();
-    final Object? custom = _asMap(await _send('GET', _prefsUri(item)))['CustomPrefs'];
+    final Object? custom = _asMap(await _send('GET', _prefsUri(itemId)))['CustomPrefs'];
     if (custom is! Map) return const <String, String>{};
     return <String, String>{
       for (final MapEntry<Object?, Object?> e in custom.entries)
@@ -482,9 +556,9 @@ class JellyfinClient {
 
   /// Merges [prefs] into the film's stored ones. The endpoint takes the whole
   /// preferences object, so the rest of what the server sent goes back as-is.
-  Future<void> setItemPrefs(MediaItem item, Map<String, String> prefs) async {
+  Future<void> setItemPrefs(String itemId, Map<String, String> prefs) async {
     _requireSession();
-    final Uri uri = _prefsUri(item);
+    final Uri uri = _prefsUri(itemId);
     final Map<String, Object?> current = _asMap(await _send('GET', uri));
     final Object? custom = current['CustomPrefs'];
     await _send(

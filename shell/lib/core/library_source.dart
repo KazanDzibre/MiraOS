@@ -23,10 +23,28 @@ abstract interface class LibrarySource {
   Future<List<MediaItem>> movies({int startIndex = 0, int limit = 60, String? genre});
   Future<List<GenreCount>> genres();
 
+  /// The user's libraries, in their Jellyfin order. Each shows library gets a
+  /// tab of its own, named as it is on the server.
+  Future<List<LibraryView>> libraries();
+  Future<int> showCount(LibraryView library, {String? genre});
+  Future<List<MediaItem>> shows(LibraryView library, {int startIndex = 0, int limit = 60, String? genre});
+  Future<List<GenreCount>> showGenres(LibraryView library);
+  Future<List<MediaItem>> seasons(MediaItem series);
+  Future<List<MediaItem>> episodes(MediaItem series, MediaItem season);
+
+  /// The episode to watch next, or null when nothing is under way.
+  Future<MediaItem?> nextUp(MediaItem series);
+
   /// One item with its full track list.
   Future<MediaItem> item(String id);
 
+  /// Portrait artwork. For an episode, its show's poster.
   Uri? posterFor(MediaItem item, {int? maxHeight});
+
+  /// An episode's own 16:9 still.
+  Uri? thumbFor(MediaItem item, {int? maxHeight});
+
+  /// For seasons and episodes, the show's backdrop.
   Uri? backdropFor(MediaItem item, {int? maxHeight});
 
   Future<PlaybackPlan> planPlayback(
@@ -40,10 +58,13 @@ abstract interface class LibrarySource {
   Future<void> downloadSubtitle(MediaItem item, RemoteSubtitle subtitle);
 
   /// The audio and subtitles last picked for [item]; the file's defaults if
-  /// nothing was. [item] must carry its full track list.
+  /// nothing was. An episode with nothing of its own takes its show's, so a
+  /// language picked once carries on through the series. [item] must carry
+  /// its full track list.
   Future<TrackChoice> savedTracks(MediaItem item);
 
-  /// Remembers [choice] for the next time [item] plays.
+  /// Remembers [choice] for the next time [item] plays, and for an episode
+  /// also as its show's choice.
   Future<void> saveTracks(MediaItem item, TrackChoice choice);
 
   Future<void> reportProgress(
@@ -181,6 +202,107 @@ class DemoLibrarySource implements LibrarySource {
     ),
   ];
 
+  static const LibraryView _filmsLibrary = LibraryView(id: 'demo-lib-films', name: 'Movies', collectionType: 'movies');
+  static const LibraryView demoShows = LibraryView(id: 'demo-lib-shows', name: 'Shows', collectionType: 'tvshows');
+  static const LibraryView demoAnime = LibraryView(id: 'demo-lib-anime', name: 'Anime', collectionType: 'tvshows');
+
+  static const List<MediaItem> _series = <MediaItem>[
+    MediaItem(
+      id: 'demo-harbour',
+      name: 'Harbour Lights',
+      type: 'Series',
+      productionYear: 2021,
+      endYear: 2023,
+      childCount: 2,
+      officialRating: 'TV-14',
+      genres: <String>['Drama', 'Mystery'],
+      overview: 'A harbour town keeps a lighthouse nobody has needed in forty '
+          'years, until the night its lamp comes on by itself.',
+    ),
+    MediaItem(
+      id: 'demo-long-winter',
+      name: 'The Long Winter',
+      type: 'Series',
+      productionYear: 2024,
+      childCount: 1,
+      genres: <String>['Drama'],
+      overview: 'Six researchers winter over at a polar station, and one of '
+          'them is not who the others were told.',
+    ),
+    MediaItem(
+      id: 'demo-ember-tide',
+      name: 'Ember Tide',
+      type: 'Series',
+      productionYear: 2019,
+      endYear: 2022,
+      childCount: 2,
+      genres: <String>['Animation', 'Action & Adventure'],
+      overview: 'A ferry pilot inherits a boat that can cross into the sea '
+          'beneath the sea.',
+    ),
+  ];
+
+  static const Map<String, String> _seriesLibrary = <String, String>{
+    'demo-harbour': 'demo-lib-shows',
+    'demo-long-winter': 'demo-lib-shows',
+    'demo-ember-tide': 'demo-lib-anime',
+  };
+
+  /// Episodes in each season, by show.
+  static const Map<String, List<int>> _seasonSizes = <String, List<int>>{
+    'demo-harbour': <int>[10, 8],
+    'demo-long-winter': <int>[6],
+    'demo-ember-tide': <int>[12, 12],
+  };
+
+  static const List<String> _episodeTitles = <String>[
+    'The Lamp', 'Low Water', 'Salt in the Gears', "The Keeper's Log", 'Fog Signal', 'Second Harbour',
+    'The Pilot Boat', 'Undertow', 'Spring Tide', 'Landfall', 'Night Crossing', 'Home Port',
+  ];
+
+  static final List<MediaItem> _seasonItems = <MediaItem>[
+    for (final MediaItem s in _series)
+      for (int n = 1; n <= _seasonSizes[s.id]!.length; n++)
+        MediaItem(
+          id: '${s.id}-s$n',
+          name: 'Season $n',
+          type: 'Season',
+          seriesId: s.id,
+          seriesName: s.name,
+          indexNumber: n,
+          childCount: _seasonSizes[s.id]![n - 1],
+        ),
+  ];
+
+  /// Harbour Lights is under way: two episodes watched, the third half-seen.
+  static final List<MediaItem> _episodeItems = <MediaItem>[
+    for (final MediaItem s in _series)
+      for (int n = 1; n <= _seasonSizes[s.id]!.length; n++)
+        for (int e = 1; e <= _seasonSizes[s.id]![n - 1]; e++)
+          MediaItem(
+            id: '${s.id}-s${n}e$e',
+            name: _episodeTitles[(e - 1) % _episodeTitles.length],
+            type: 'Episode',
+            seriesId: s.id,
+            seriesName: s.name,
+            seasonId: '${s.id}-s$n',
+            indexNumber: e,
+            parentIndexNumber: n,
+            productionYear: s.productionYear,
+            runtime: const Duration(minutes: 44),
+            videoCodec: 'hevc',
+            width: 1920,
+            height: 1080,
+            tracks: _demoTracks,
+            overview: 'Sample episode - nothing is connected. The ${s.name} story '
+                'carries on, one tide at a time.',
+            played: s.id == 'demo-harbour' && n == 1 && e < 3,
+            resumePosition: s.id == 'demo-harbour' && n == 1 && e == 3
+                ? const Duration(minutes: 18)
+                : Duration.zero,
+          ),
+  ];
+
   @override
   String get label => 'demo';
 
@@ -206,35 +328,83 @@ class DemoLibrarySource implements LibrarySource {
   Future<int> movieCount({String? genre}) => _soon(_filtered(genre).length);
 
   @override
-  Future<List<MediaItem>> movies({int startIndex = 0, int limit = 60, String? genre}) {
-    final List<MediaItem> all = _filtered(genre);
+  Future<List<MediaItem>> movies({int startIndex = 0, int limit = 60, String? genre}) =>
+      _soon(_page(_filtered(genre), startIndex, limit));
+
+  static List<MediaItem> _page(List<MediaItem> all, int startIndex, int limit) {
     final int start = startIndex.clamp(0, all.length);
     final int end = (start + limit).clamp(0, all.length);
-    return _soon(all.sublist(start, end));
+    return all.sublist(start, end);
   }
 
-  @override
-  Future<List<GenreCount>> genres() {
+  static List<GenreCount> _countGenres(Iterable<MediaItem> items) {
     final Map<String, int> counts = <String, int>{};
-    for (final MediaItem m in _films) {
+    for (final MediaItem m in items) {
       for (final String g in m.genres) {
         counts[g] = (counts[g] ?? 0) + 1;
       }
     }
-    return _soon(counts.entries
+    return counts.entries
         .map((MapEntry<String, int> e) => GenreCount(e.key, e.value))
         .toList()
       ..sort((GenreCount a, GenreCount b) => b.count != a.count
           ? b.count.compareTo(a.count)
-          : a.name.compareTo(b.name)));
+          : a.name.compareTo(b.name));
   }
 
   @override
-  Future<MediaItem> item(String id) =>
-      _soon(_films.firstWhere((MediaItem m) => m.id == id, orElse: () => _films.first));
+  Future<List<GenreCount>> genres() => _soon(_countGenres(_films));
+
+  @override
+  Future<List<LibraryView>> libraries() =>
+      _soon(const <LibraryView>[_filmsLibrary, demoShows, demoAnime]);
+
+  List<MediaItem> _seriesIn(LibraryView library, String? genre) => _series
+      .where((MediaItem s) =>
+          _seriesLibrary[s.id] == library.id && (genre == null || s.genres.contains(genre)))
+      .toList(growable: false);
+
+  @override
+  Future<int> showCount(LibraryView library, {String? genre}) => _soon(_seriesIn(library, genre).length);
+
+  @override
+  Future<List<MediaItem>> shows(LibraryView library, {int startIndex = 0, int limit = 60, String? genre}) =>
+      _soon(_page(_seriesIn(library, genre), startIndex, limit));
+
+  @override
+  Future<List<GenreCount>> showGenres(LibraryView library) => _soon(_countGenres(_seriesIn(library, null)));
+
+  @override
+  Future<List<MediaItem>> seasons(MediaItem series) =>
+      _soon(_seasonItems.where((MediaItem s) => s.seriesId == series.id).toList(growable: false));
+
+  @override
+  Future<List<MediaItem>> episodes(MediaItem series, MediaItem season) =>
+      _soon(_episodeItems.where((MediaItem e) => e.seasonId == season.id).toList(growable: false));
+
+  /// Like Jellyfin's: the part-watched episode, else the one after the last
+  /// watched, else nothing for a show never started.
+  @override
+  Future<MediaItem?> nextUp(MediaItem series) {
+    final List<MediaItem> eps =
+        _episodeItems.where((MediaItem e) => e.seriesId == series.id).toList(growable: false);
+    int lastPlayed = -1;
+    for (int i = 0; i < eps.length; i++) {
+      if (eps[i].canResume) return _soon(eps[i]);
+      if (eps[i].played) lastPlayed = i;
+    }
+    return _soon(lastPlayed >= 0 && lastPlayed + 1 < eps.length ? eps[lastPlayed + 1] : null);
+  }
+
+  @override
+  Future<MediaItem> item(String id) => _soon(<MediaItem>[..._films, ..._series, ..._episodeItems]
+      .firstWhere((MediaItem m) => m.id == id, orElse: () => _films.first));
 
   @override
   Uri? posterFor(MediaItem item, {int? maxHeight}) => null;
+
+  @override
+  Uri? thumbFor(MediaItem item, {int? maxHeight}) => null;
 
   @override
   Uri? backdropFor(MediaItem item, {int? maxHeight}) => null;
@@ -267,12 +437,16 @@ class DemoLibrarySource implements LibrarySource {
   static final Map<String, Map<String, String>> _savedPrefs = <String, Map<String, String>>{};
 
   @override
-  Future<TrackChoice> savedTracks(MediaItem item) =>
-      _soon(TrackChoice.fromPrefs(_savedPrefs[item.id] ?? const <String, String>{}, item));
+  Future<TrackChoice> savedTracks(MediaItem item) => _soon(TrackChoice.fromPrefs(
+      _savedPrefs[item.id] ??
+          (item.seriesId == null ? null : _savedPrefs[item.seriesId!]) ??
+          const <String, String>{},
+      item));
 
   @override
   Future<void> saveTracks(MediaItem item, TrackChoice choice) {
     _savedPrefs[item.id] = choice.toPrefs();
+    if (item.seriesId != null) _savedPrefs[item.seriesId!] = choice.toPrefs();
     return _soon(null);
   }
 
@@ -358,19 +532,75 @@ class JellyfinLibrarySource implements LibrarySource {
   }
 
   @override
+  Future<List<LibraryView>> libraries() async {
+    await _signIn();
+    return client.libraries();
+  }
+
+  @override
+  Future<int> showCount(LibraryView library, {String? genre}) async {
+    await _signIn();
+    return client.movieCount(genre: genre, type: 'Series', parentId: library.id);
+  }
+
+  @override
+  Future<List<MediaItem>> shows(LibraryView library, {int startIndex = 0, int limit = 60, String? genre}) async {
+    await _signIn();
+    return client.movies(startIndex: startIndex, limit: limit, genre: genre, type: 'Series', parentId: library.id);
+  }
+
+  @override
+  Future<List<GenreCount>> showGenres(LibraryView library) async {
+    await _signIn();
+    return client.movieGenres(type: 'Series', parentId: library.id);
+  }
+
+  @override
+  Future<List<MediaItem>> seasons(MediaItem series) async {
+    await _signIn();
+    return client.seasons(series.id);
+  }
+
+  @override
+  Future<List<MediaItem>> episodes(MediaItem series, MediaItem season) async {
+    await _signIn();
+    return client.episodes(series.id, season.id);
+  }
+
+  @override
+  Future<MediaItem?> nextUp(MediaItem series) async {
+    await _signIn();
+    return client.nextUp(series.id);
+  }
+
+  @override
   Future<MediaItem> item(String id) async {
     await _signIn();
     return client.item(id);
   }
 
   @override
-  Uri? posterFor(MediaItem item, {int? maxHeight}) =>
+  Uri? posterFor(MediaItem item, {int? maxHeight}) {
+    // An episode's own image is a 16:9 still; a portrait tile wants the show.
+    if (item.isEpisode && item.seriesId != null && item.seriesPrimaryImageTag != null) {
+      return client.imageUrlById(item.seriesId!, tag: item.seriesPrimaryImageTag, maxHeight: maxHeight);
+    }
+    return item.primaryImageTag == null ? null : client.imageUrl(item, maxHeight: maxHeight);
+  }
+
+  @override
+  Uri? thumbFor(MediaItem item, {int? maxHeight}) =>
       item.primaryImageTag == null ? null : client.imageUrl(item, maxHeight: maxHeight);
 
   @override
-  Uri? backdropFor(MediaItem item, {int? maxHeight}) => item.backdropImageTag == null
-      ? null
-      : client.imageUrl(item, kind: 'Backdrop', maxHeight: maxHeight);
+  Uri? backdropFor(MediaItem item, {int? maxHeight}) {
+    if (item.backdropImageTag != null) return client.imageUrl(item, kind: 'Backdrop', maxHeight: maxHeight);
+    if (item.parentBackdropItemId != null && item.parentBackdropImageTag != null) {
+      return client.imageUrlById(item.parentBackdropItemId!,
+          kind: 'Backdrop', tag: item.parentBackdropImageTag, maxHeight: maxHeight);
+    }
+    return null;
+  }
 
   @override
   Future<PlaybackPlan> planPlayback(MediaItem item, {int? audioStreamIndex, int? subtitleStreamIndex}) async {
@@ -399,13 +629,18 @@ class JellyfinLibrarySource implements LibrarySource {
   @override
   Future<TrackChoice> savedTracks(MediaItem item) async {
     await _signIn();
-    return TrackChoice.fromPrefs(await client.itemPrefs(item), item);
+    Map<String, String> prefs = await client.itemPrefs(item.id);
+    if (!prefs.containsKey('subtitle') && item.seriesId != null) {
+      prefs = await client.itemPrefs(item.seriesId!);
+    }
+    return TrackChoice.fromPrefs(prefs, item);
   }
 
   @override
   Future<void> saveTracks(MediaItem item, TrackChoice choice) async {
     await _signIn();
-    return client.setItemPrefs(item, choice.toPrefs());
+    await client.setItemPrefs(item.id, choice.toPrefs());
+    if (item.seriesId != null) await client.setItemPrefs(item.seriesId!, choice.toPrefs());
   }
 
   @override

@@ -175,7 +175,7 @@ class _DetailScreenState extends State<DetailScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
-            Text('Films', style: MiraType.nav.copyWith(color: MiraColors.textSecondary)),
+            Text(_item.seriesName ?? 'Films', style: MiraType.nav.copyWith(color: MiraColors.textSecondary)),
             Expanded(
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
@@ -211,7 +211,7 @@ class _DetailScreenState extends State<DetailScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            const Text('FILM', style: MiraType.sectionLabel),
+            Text(item.isEpisode ? (item.episodeLabel ?? 'EPISODE') : 'FILM', style: MiraType.sectionLabel),
             const SizedBox(height: 20),
             Text(item.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: MiraType.hero.copyWith(fontSize: 78)),
             const SizedBox(height: 20),

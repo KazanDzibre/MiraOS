@@ -13,9 +13,63 @@ import 'widgets/poster.dart';
 
 enum _Mode { all, genres }
 
-/// The Films tab: every film, or the genres view, switched by the chips.
+/// What a library grid shows: every film, or the shows of one library.
 ///
-/// A single genre's films open as a pushed screen of this same widget with
+/// The grid, the genres view and paging are the same for both, so a shows
+/// library is this screen with a different catalog rather than a copy of it.
+class Catalog {
+  const Catalog({
+    required this.title,
+    required this.singular,
+    required this.plural,
+    required this.debugName,
+    required this.count,
+    required this.page,
+    required this.genres,
+  });
+
+  factory Catalog.films(LibrarySource source) => Catalog(
+        title: 'Films',
+        singular: 'film',
+        plural: 'films',
+        debugName: 'films',
+        count: (String? genre) => source.movieCount(genre: genre),
+        page: (int start, int limit, String? genre) =>
+            source.movies(startIndex: start, limit: limit, genre: genre),
+        genres: source.genres,
+      );
+
+  /// One shows library, titled as it is on the server - "Shows", "Anime".
+  factory Catalog.shows(LibrarySource source, LibraryView library) => Catalog(
+        title: library.name,
+        singular: 'show',
+        plural: 'shows',
+        debugName: 'shows',
+        count: (String? genre) => source.showCount(library, genre: genre),
+        page: (int start, int limit, String? genre) =>
+            source.shows(library, startIndex: start, limit: limit, genre: genre),
+        genres: () => source.showGenres(library),
+      );
+
+  /// The screen title, and the tab it lives under.
+  final String title;
+  final String singular;
+  final String plural;
+
+  /// Prefix of the grid tiles' focus labels, as tests find them.
+  final String debugName;
+
+  final Future<int> Function(String? genre) count;
+  final Future<List<MediaItem>> Function(int startIndex, int limit, String? genre) page;
+  final Future<List<GenreCount>> Function() genres;
+
+  String countLabel(int n) => '$n ${n == 1 ? singular : plural}';
+}
+
+/// A library tab: every film (or show), or the genres view, switched by the
+/// chips.
+///
+/// A single genre's titles open as a pushed screen of this same widget with
 /// [genre] set, so Back returns to the genres view through the normal
 /// navigator rule instead of a special case here.
 class FilmsScreen extends StatefulWidget {
@@ -25,14 +79,18 @@ class FilmsScreen extends StatefulWidget {
     required this.onOpen,
     this.onTab,
     this.genre,
+    this.catalog,
   });
 
   final LibrarySource source;
   final ValueChanged<MediaItem> onOpen;
   final ValueChanged<String>? onTab;
 
-  /// Set when this screen shows one genre's films.
+  /// Set when this screen shows one genre's titles.
   final String? genre;
+
+  /// Films when null.
+  final Catalog? catalog;
 
   @override
   State<FilmsScreen> createState() => _FilmsScreenState();
@@ -44,6 +102,8 @@ class _FilmsScreenState extends State<FilmsScreen> {
   static const int _genreColumns = 4;
   static const double _gap = 32;
 
+  late final Catalog _catalog = widget.catalog ?? Catalog.films(widget.source);
+
   _Mode _mode = _Mode.all;
   final List<MediaItem> _items = <MediaItem>[];
   int _total = 0;
@@ -52,7 +112,7 @@ class _FilmsScreenState extends State<FilmsScreen> {
   String? _error;
   List<GenreCount>? _genres;
 
-  final GridFocus _filmFocus = GridFocus(columns: _columns, debugName: 'films');
+  late final GridFocus _filmFocus = GridFocus(columns: _columns, debugName: _catalog.debugName);
   final GridFocus _genreFocus = GridFocus(columns: _genreColumns, debugName: 'genres');
 
   double get _ringRoom => MiraFocusRing.reach + 2;
@@ -78,9 +138,8 @@ class _FilmsScreenState extends State<FilmsScreen> {
       _items.clear();
     });
     try {
-      final int total = await widget.source.movieCount(genre: widget.genre);
-      final List<MediaItem> first =
-          await widget.source.movies(limit: _page, genre: widget.genre);
+      final int total = await _catalog.count(widget.genre);
+      final List<MediaItem> first = await _catalog.page(0, _page, widget.genre);
       if (!mounted) return;
       setState(() {
         _total = total;
@@ -102,11 +161,7 @@ class _FilmsScreenState extends State<FilmsScreen> {
     if (_loadingMore || _items.length >= _total) return;
     _loadingMore = true;
     try {
-      final List<MediaItem> more = await widget.source.movies(
-        startIndex: _items.length,
-        limit: _page,
-        genre: widget.genre,
-      );
+      final List<MediaItem> more = await _catalog.page(_items.length, _page, widget.genre);
       if (!mounted) return;
       setState(() => _items.addAll(more));
     } on JellyfinException {
@@ -121,7 +176,7 @@ class _FilmsScreenState extends State<FilmsScreen> {
     setState(() => _mode = mode);
     if (mode == _Mode.genres && _genres == null) {
       try {
-        final List<GenreCount> genres = await widget.source.genres();
+        final List<GenreCount> genres = await _catalog.genres();
         if (!mounted) return;
         setState(() => _genres = genres);
       } on JellyfinException catch (e) {
@@ -135,8 +190,12 @@ class _FilmsScreenState extends State<FilmsScreen> {
     Navigator.of(context).push(PageRouteBuilder<void>(
       transitionDuration: MiraMotion.screen,
       reverseTransitionDuration: MiraMotion.screen,
-      pageBuilder: (BuildContext c, Animation<double> a, Animation<double> b) =>
-          FilmsScreen(source: widget.source, onOpen: widget.onOpen, genre: genre.name),
+      pageBuilder: (BuildContext c, Animation<double> a, Animation<double> b) => FilmsScreen(
+        source: widget.source,
+        onOpen: widget.onOpen,
+        genre: genre.name,
+        catalog: _catalog,
+      ),
       transitionsBuilder: (BuildContext c, Animation<double> a, Animation<double> b, Widget child) =>
           FadeTransition(opacity: a, child: child),
     ));
@@ -144,7 +203,7 @@ class _FilmsScreenState extends State<FilmsScreen> {
 
   String get _title {
     if (widget.genre != null) return widget.genre!;
-    return _mode == _Mode.genres ? 'Genres' : 'Films';
+    return _mode == _Mode.genres ? 'Genres' : _catalog.title;
   }
 
   String get _count {
@@ -153,7 +212,7 @@ class _FilmsScreenState extends State<FilmsScreen> {
       return n == null ? '' : '$n genres';
     }
     if (!_loaded) return '';
-    return '$_total film${_total == 1 ? '' : 's'}';
+    return _catalog.countLabel(_total);
   }
 
   @override
@@ -167,9 +226,9 @@ class _FilmsScreenState extends State<FilmsScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
             if (widget.genre == null)
-              MiraTopBar(activeTab: 'Films', onTab: widget.onTab, networkLabel: widget.source.label)
+              MiraTopBar(activeTab: _catalog.title, onTab: widget.onTab, networkLabel: widget.source.label)
             else
-              const _Breadcrumb(label: 'Genres'),
+              _Breadcrumb(label: '${_catalog.title} · Genres'),
             const SizedBox(height: 40),
             _header(),
             const SizedBox(height: 28),
@@ -203,7 +262,7 @@ class _FilmsScreenState extends State<FilmsScreen> {
         const SizedBox(height: 22),
         Row(
           children: <Widget>[
-            _Chip(label: 'All films', active: _mode == _Mode.all, onSelect: () => _setMode(_Mode.all)),
+            _Chip(label: 'All ${_catalog.plural}', active: _mode == _Mode.all, onSelect: () => _setMode(_Mode.all)),
             const SizedBox(width: 16),
             _Chip(label: 'Genres', active: _mode == _Mode.genres, onSelect: () => _setMode(_Mode.genres)),
           ],
@@ -232,7 +291,7 @@ class _FilmsScreenState extends State<FilmsScreen> {
     if (_items.isEmpty) {
       return Align(
         alignment: Alignment.topLeft,
-        child: Text('No films here yet.', style: MiraType.body.copyWith(color: MiraColors.textTertiary)),
+        child: Text('No ${_catalog.plural} here yet.', style: MiraType.body.copyWith(color: MiraColors.textTertiary)),
       );
     }
     return _filmGrid();
@@ -308,6 +367,7 @@ class _FilmsScreenState extends State<FilmsScreen> {
         itemCount: genres.length,
         itemBuilder: (BuildContext context, int i) => _GenreTile(
           genre: genres[i],
+          countLabel: _catalog.countLabel(genres[i].count),
           autofocus: i == 0,
           focusNode: _genreFocus.nodeFor(i),
           onKey: (KeyEvent event) => _genreFocus.handleKey(i, event),
@@ -351,6 +411,7 @@ class _Chip extends StatelessWidget {
 class _GenreTile extends StatelessWidget {
   const _GenreTile({
     required this.genre,
+    required this.countLabel,
     required this.onSelect,
     this.autofocus = false,
     this.focusNode,
@@ -358,6 +419,9 @@ class _GenreTile extends StatelessWidget {
   });
 
   final GenreCount genre;
+
+  /// "12 films", "3 shows".
+  final String countLabel;
   final VoidCallback onSelect;
   final bool autofocus;
   final FocusNode? focusNode;
@@ -425,7 +489,7 @@ class _GenreTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    '${genre.count} film${genre.count == 1 ? '' : 's'}',
+                    countLabel,
                     style: MiraType.meta.copyWith(fontSize: 18, color: MiraColors.textTertiary),
                   ),
                 ],
