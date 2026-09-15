@@ -217,7 +217,7 @@ class _SeriesScreenState extends State<SeriesScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
             Padding(padding: const EdgeInsets.only(left: _ringRoom), child: _header()),
-            const Spacer(),
+            const SizedBox(height: 22),
             if (_error != null)
               Padding(
                 padding: const EdgeInsets.only(left: _ringRoom),
@@ -225,11 +225,16 @@ class _SeriesScreenState extends State<SeriesScreen> {
               )
             else ...<Widget>[
               _seasonRow(),
-              const SizedBox(height: 18),
+              const SizedBox(height: 14),
               _episodeRow(),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(_ringRoom, 10, MiraMetrics.safeH, 0),
-                child: _episodeCaption(),
+              // Whatever height is left. A fixed-height caption under a
+              // Spacer overflowed as soon as a real show's synopsis took two
+              // lines in the header (Californication, found in the VM).
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(_ringRoom, 10, MiraMetrics.safeH, 0),
+                  child: _episodeCaption(),
+                ),
               ),
             ],
           ],

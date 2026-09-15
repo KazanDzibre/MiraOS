@@ -216,8 +216,12 @@ class DemoLibrarySource implements LibrarySource {
       childCount: 2,
       officialRating: 'TV-14',
       genres: <String>['Drama', 'Mystery'],
+      // Two lines in the header on purpose: a one-line synopsis hid the
+      // overflow a real show (Californication) showed in the VM.
       overview: 'A harbour town keeps a lighthouse nobody has needed in forty '
-          'years, until the night its lamp comes on by itself.',
+          'years, until the night its lamp comes on by itself - and the '
+          'keeper who retired from it thirty years ago starts walking back '
+          'down to the shore every evening, as if he had never stopped.',
     ),
     MediaItem(
       id: 'demo-long-winter',
