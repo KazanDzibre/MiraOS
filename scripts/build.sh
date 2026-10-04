@@ -67,10 +67,15 @@ if [ "${CLEAN}" = 1 ]; then
 	rm -rf "${BUILD_DIR}"
 fi
 
-# (Re)generate the config whenever the defconfig is newer than the build's
-# .config, so edits to the defconfig are never silently ignored.
+# (Re)generate the config whenever a kconfig input is newer than the build's
+# .config, so edits are never silently ignored. That means the defconfig *and*
+# the package Config.in files: a package's "depends on" decides whether a
+# symbol survives at all, and on 2026-10-04 an arch gate that still said
+# x86_64 only dropped the engine, flutter-pi and the shell out of the first
+# rpi4 image - which then built and packed happily with no UI in it.
 if [ ! -f "${BUILD_DIR}/.config" ] || \
-   [ "${EXTERNAL_DIR}/configs/${DEFCONFIG}" -nt "${BUILD_DIR}/.config" ]; then
+   [ "${EXTERNAL_DIR}/configs/${DEFCONFIG}" -nt "${BUILD_DIR}/.config" ] || \
+   [ -n "$(find "${EXTERNAL_DIR}" -name 'Config.in' -newer "${BUILD_DIR}/.config" -print -quit)" ]; then
 	echo ">> configuring ${TARGET} from ${DEFCONFIG}"
 	mkdir -p "${BUILD_DIR}"
 	make -C "${BUILDROOT_DIR}" O="${BUILD_DIR}" BR2_EXTERNAL="${EXTERNAL_DIR}" "${DEFCONFIG}"

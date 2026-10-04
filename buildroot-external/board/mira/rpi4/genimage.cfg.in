@@ -1,0 +1,32 @@
+# Mira SD card: FAT32 boot partition the Pi firmware reads, then ext4 root.
+#
+# The boot file list is filled in by post-image.sh from what the build actually
+# produced, so a new overlay or DTB never has to be listed twice. Do not name
+# the placeholder token in a comment: the substitution is not line-aware and
+# would fill the comment in too, which genimage then tries to parse.
+
+image boot.vfat {
+	vfat {
+		files = {
+#BOOT_FILES#
+		}
+	}
+
+	size = 100M
+}
+
+image sdcard.img {
+	hdimage {
+	}
+
+	partition boot {
+		partition-type = 0xC
+		bootable = "true"
+		image = "boot.vfat"
+	}
+
+	partition rootfs {
+		partition-type = 0x83
+		image = "rootfs.ext4"
+	}
+}

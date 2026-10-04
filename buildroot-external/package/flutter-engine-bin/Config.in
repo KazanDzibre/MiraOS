@@ -1,6 +1,12 @@
 config BR2_PACKAGE_FLUTTER_ENGINE_BIN_ARCH_SUPPORTS
 	bool
+	# The architectures Flutter publishes a Linux embedder for, and that
+	# flutter-engine-bin.mk knows how to fetch: x86_64 for the VM, aarch64
+	# for the Pi. Leaving aarch64 out here silently dropped the engine,
+	# flutter-pi and the shell from the first rpi4 image - it built and
+	# packed happily with no UI in it at all (2026-10-04).
 	default y if BR2_x86_64
+	default y if BR2_aarch64
 
 config BR2_PACKAGE_FLUTTER_ENGINE_BIN
 	bool "flutter-engine-bin"

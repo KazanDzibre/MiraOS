@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 import 'package:qr/qr.dart';
@@ -21,6 +22,7 @@ class NetworkScreen extends StatefulWidget {
     required this.serverLabel,
     required this.checkServer,
     this.signInFirst = false,
+    this.localAddress = defaultLocalAddress,
   });
 
   final NetbirdMonitor monitor;
@@ -33,6 +35,10 @@ class NetworkScreen extends StatefulWidget {
   /// signing in is the only thing to do.
   final bool signInFirst;
 
+  /// This box's address on the home network. Injected so goldens do not show
+  /// whichever address the machine running the test happens to have.
+  final Future<String?> Function() localAddress;
+
   @override
   State<NetworkScreen> createState() => _NetworkScreenState();
 }
@@ -42,6 +48,7 @@ class _NetworkScreenState extends State<NetworkScreen> {
   /// tunnel comes up and "Sign in" turns into "Check again".
   final FocusNode _primaryNode = FocusNode(debugLabel: 'network:primary');
   bool? _serverUp;
+  String? _lan;
   bool _checking = false;
 
   @override
@@ -71,11 +78,14 @@ class _NetworkScreenState extends State<NetworkScreen> {
       _serverUp = null;
     });
     final Future<NetbirdStatus> tunnel = widget.monitor.refresh();
+    final Future<String?> lan = widget.localAddress();
     final bool server = await widget.checkServer().catchError((Object _) => false);
     await tunnel;
+    final String? address = await lan;
     if (!mounted) return;
     setState(() {
       _serverUp = server;
+      _lan = address;
       _checking = false;
     });
   }
@@ -112,6 +122,11 @@ class _NetworkScreenState extends State<NetworkScreen> {
       NetbirdState.unavailable => ('NetBird is not on this box', 'This machine reaches your server over its own network, so there is no tunnel to manage here.'),
     };
 
+    final List<String> addresses = <String>[
+      if (_lan != null) _lan!,
+      if (s?.ip != null) '${s!.ip} on the tunnel',
+    ];
+
     final List<String> technical = <String>[
       if (s?.managementUrl != null) s!.managementUrl!,
       if (s?.fqdn != null) s!.fqdn!,
@@ -143,8 +158,10 @@ class _NetworkScreenState extends State<NetworkScreen> {
                       _tunnelRow(s),
                       StatusRow(
                         label: 'This box',
-                        value: s?.ip ?? (state == NetbirdState.unavailable ? 'uses this machine\'s network' : 'no tunnel address yet'),
-                        tone: s?.ip != null ? StatusTone.good : StatusTone.neutral,
+                        // Its own address, because a box with no screen of its
+                        // own and no serial adapter has no other way to say it.
+                        value: addresses.isEmpty ? 'no address yet' : addresses.join('   ·   '),
+                        tone: addresses.isEmpty ? StatusTone.neutral : StatusTone.good,
                       ),
                       StatusRow(
                         label: 'Server',
@@ -505,4 +522,24 @@ class _QrPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_QrPainter oldDelegate) => oldDelegate.data != data;
+}
+
+
+/// This box's address on the home network - what you would ssh to. The Pi has
+/// no screen of its own, so the TV is where it gets said.
+Future<String?> defaultLocalAddress() async {
+  try {
+    final List<NetworkInterface> interfaces =
+        await NetworkInterface.list(includeLoopback: false, type: InternetAddressType.IPv4);
+    for (final NetworkInterface interface in interfaces) {
+      for (final InternetAddress address in interface.addresses) {
+        if (!address.isLoopback && !address.isLinkLocal) return address.address;
+      }
+    }
+  } on OSError {
+    // No network layer to ask; the row stays empty rather than failing.
+  } on SocketException {
+    // Same.
+  }
+  return null;
 }

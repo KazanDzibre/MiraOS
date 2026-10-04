@@ -1,0 +1,130 @@
+# Mira - Raspberry Pi 4B target (aarch64).
+#
+# Produces an SD card image: FAT32 boot partition with the Pi firmware, kernel
+# and overlays, then an ext4 root. Everything above the kernel is shared with
+# the VM target (mira_vm_x86_64_defconfig); this file is the kernel, the
+# bootloader-equivalent firmware and the image layout.
+#
+# First cut, deliberately: ONE plain read-write rootfs. A/B slots, tryboot and
+# the read-only root come later (CLAUDE.md, "Boot and storage").
+
+# --- Architecture ---
+BR2_aarch64=y
+BR2_cortex_a72=y
+
+# --- Toolchain ---
+# Bootlin's prebuilt aarch64 glibc toolchain, as Buildroot's own
+# raspberrypi4_64_defconfig uses. glibc because the Flutter engine links
+# against it; prebuilt because the Pi kernel fork sets the header version and
+# an internal toolchain would have to be pinned to match it.
+BR2_TOOLCHAIN_EXTERNAL=y
+BR2_TOOLCHAIN_EXTERNAL_BOOTLIN=y
+BR2_TOOLCHAIN_EXTERNAL_BOOTLIN_AARCH64_GLIBC_STABLE=y
+
+# --- System ---
+BR2_TARGET_GENERIC_HOSTNAME="mira"
+BR2_TARGET_GENERIC_ISSUE="Mira"
+BR2_SYSTEM_DHCP="eth0"
+# Dropbear, and a root password because sshd refuses an empty one. This is the
+# way in when the TV shows nothing and there is no serial adapter to hand - a
+# development convenience on a home LAN, not an appliance feature. A shipping
+# box must not answer on port 22 with a password written in its source tree.
+BR2_PACKAGE_DROPBEAR=y
+BR2_TARGET_GENERIC_ROOT_PASSWD="mira"
+BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_MIRA_PATH)/board/mira/common/rootfs-overlay"
+BR2_ROOTFS_POST_BUILD_SCRIPT="$(BR2_EXTERNAL_MIRA_PATH)/board/mira/common/post-build.sh"
+BR2_ROOTFS_POST_IMAGE_SCRIPT="$(BR2_EXTERNAL_MIRA_PATH)/board/mira/rpi4/post-image.sh"
+
+# --- Kernel: the Raspberry Pi fork, not mainline ---
+# rpivid (HEVC) and bcm2835-codec (H.264) live here, and they are the whole
+# point of the Pi as a target. Same commit Buildroot 2026.02.3 pins for its
+# raspberrypi4_64 defconfig, so we inherit its vetting.
+BR2_LINUX_KERNEL=y
+BR2_LINUX_KERNEL_CUSTOM_TARBALL=y
+BR2_LINUX_KERNEL_CUSTOM_TARBALL_LOCATION="$(call github,raspberrypi,linux,21b410140c47ffab5668399f6f143c7d7b935c8b)/linux-21b410140c47ffab5668399f6f143c7d7b935c8b.tar.gz"
+BR2_LINUX_KERNEL_DEFCONFIG="bcm2711"
+BR2_LINUX_KERNEL_DTS_SUPPORT=y
+BR2_LINUX_KERNEL_INTREE_DTS_NAME="broadcom/bcm2711-rpi-4-b"
+BR2_LINUX_KERNEL_NEEDS_HOST_OPENSSL=y
+
+# --- Firmware and boot partition ---
+BR2_PACKAGE_RPI_FIRMWARE=y
+BR2_PACKAGE_RPI_FIRMWARE_VARIANT_PI4=y
+BR2_PACKAGE_RPI_FIRMWARE_CONFIG_FILE="$(BR2_EXTERNAL_MIRA_PATH)/board/mira/rpi4/config.txt"
+BR2_PACKAGE_RPI_FIRMWARE_CMDLINE_FILE="$(BR2_EXTERNAL_MIRA_PATH)/board/mira/rpi4/cmdline.txt"
+# vc4-kms-v3d.dtbo lives here; config.txt loads it to get full KMS.
+BR2_PACKAGE_RPI_FIRMWARE_INSTALL_DTB_OVERLAYS=y
+BR2_PACKAGE_KMOD=y
+BR2_PACKAGE_KMOD_TOOLS=y
+
+# --- Image ---
+BR2_TARGET_ROOTFS_EXT2=y
+BR2_TARGET_ROOTFS_EXT2_4=y
+# The VM's target rootfs is ~312 MB; this leaves room for it plus the kernel
+# modules and some slack, without making the .img slow to write to a card.
+BR2_TARGET_ROOTFS_EXT2_SIZE="700M"
+# BR2_TARGET_ROOTFS_TAR is not set
+BR2_PACKAGE_HOST_DOSFSTOOLS=y
+BR2_PACKAGE_HOST_GENIMAGE=y
+BR2_PACKAGE_HOST_MTOOLS=y
+
+# --- Graphics: flutter-pi renders straight to DRM/KMS, so it needs GBM and
+# GLES but no X11 or Wayland. v3d is the Pi 4's GPU; it needs vc4 for display. ---
+BR2_PACKAGE_MESA3D=y
+BR2_PACKAGE_MESA3D_GALLIUM_DRIVER_V3D=y
+BR2_PACKAGE_MESA3D_GALLIUM_DRIVER_VC4=y
+BR2_PACKAGE_MESA3D_OPENGL_EGL=y
+BR2_PACKAGE_MESA3D_OPENGL_ES=y
+BR2_PACKAGE_MESA3D_GBM=y
+BR2_PACKAGE_LIBDRM=y
+
+# --- Input: libinput enumerates devices through udev, which BusyBox mdev does
+# not provide, so /dev management moves to eudev. ---
+BR2_ROOTFS_DEVICE_CREATION_DYNAMIC_EUDEV=y
+BR2_PACKAGE_LIBINPUT=y
+BR2_PACKAGE_LIBXKBCOMMON=y
+# Without the keymap database flutter-pi runs with no keyboard at all, so
+# nothing is reachable by d-pad (found in the VM, 2026-09-12).
+BR2_PACKAGE_XKEYBOARD_CONFIG=y
+
+# --- Playback: GStreamer inside the flutter-pi process (DRM-master option 1) ---
+BR2_PACKAGE_GSTREAMER1=y
+BR2_PACKAGE_GST1_PLUGINS_BASE=y
+BR2_PACKAGE_GST1_PLUGINS_BASE_PLUGIN_PLAYBACK=y
+BR2_PACKAGE_GST1_PLUGINS_BASE_PLUGIN_TYPEFIND=y
+BR2_PACKAGE_GST1_PLUGINS_BASE_PLUGIN_APP=y
+BR2_PACKAGE_GST1_PLUGINS_BASE_PLUGIN_VIDEOCONVERTSCALE=y
+BR2_PACKAGE_GST1_PLUGINS_BASE_PLUGIN_AUDIOCONVERT=y
+BR2_PACKAGE_GST1_PLUGINS_BASE_PLUGIN_AUDIORESAMPLE=y
+BR2_PACKAGE_GST1_PLUGINS_BASE_PLUGIN_ALSA=y
+BR2_PACKAGE_GST1_PLUGINS_GOOD=y
+BR2_PACKAGE_GST1_PLUGINS_GOOD_PLUGIN_SOUPHTTPSRC=y
+BR2_PACKAGE_GST1_PLUGINS_GOOD_PLUGIN_MATROSKA=y
+BR2_PACKAGE_GST1_PLUGINS_GOOD_PLUGIN_ISOMP4=y
+BR2_PACKAGE_GST1_PLUGINS_GOOD_PLUGIN_AUTODETECT=y
+# v4l2h264dec / v4l2slh265dec - the Pi's hardware decoders. The shell still
+# hands GStreamer the VM's uridecodebin pipeline, so what actually gets picked
+# is unverified; pinning them is step 2 of the rpi4 plan in CLAUDE.md.
+BR2_PACKAGE_GST1_PLUGINS_GOOD_PLUGIN_V4L2=y
+BR2_PACKAGE_GST1_PLUGINS_BAD=y
+BR2_PACKAGE_GST1_PLUGINS_BAD_PLUGIN_VIDEOPARSERS=y
+BR2_PACKAGE_GST1_PLUGINS_BAD_PLUGIN_HLS=y
+BR2_PACKAGE_GST1_PLUGINS_BAD_PLUGIN_MPEGTSDEMUX=y
+# Software decode, kept as a fallback until the V4L2 path is proven on real
+# hardware. A pegged CPU core means it fell back and the pipeline is wrong.
+BR2_PACKAGE_GST1_LIBAV=y
+# ALSA starts muted and a fresh image has no saved mixer state, so without
+# these the TV plays films in silence (measured in the VM, 2026-09-13).
+BR2_PACKAGE_ALSA_UTILS=y
+BR2_PACKAGE_ALSA_UTILS_ALSACTL=y
+BR2_PACKAGE_ALSA_UTILS_AMIXER=y
+
+# Root certificates: without them every HTTPS request fails silently.
+BR2_PACKAGE_CA_CERTIFICATES=y
+
+# --- Mira ---
+BR2_PACKAGE_MIRAD=y
+BR2_PACKAGE_SD_EVENT_SHIM=y
+BR2_PACKAGE_FLUTTERPI=y
+BR2_PACKAGE_MIRA_SHELL=y
+BR2_PACKAGE_NETBIRD=y

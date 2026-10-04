@@ -674,6 +674,7 @@ void main() {
           monitor: monitor,
           serverLabel: '192.168.100.34',
           checkServer: () async => false,
+          localAddress: () async => '192.168.100.21',
         ),
       ),
     )));

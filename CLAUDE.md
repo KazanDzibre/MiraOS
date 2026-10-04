@@ -20,6 +20,12 @@ rendered by the same Flutter process**, so it costs a screen set and an API
 client and *does not touch the DRM-master constraint*. A second **graphical**
 process is the expensive kind of addition; a second **HTTP** client is not.
 
+**Considered and declined (2026-09-15): an Android TV APK of Mira Shell** for
+operator boxes like SBB's EON Smart Box. Flutter would build it from the same
+code, behind the `MiraPlayer` interface with an ExoPlayer backend, a
+MediaCodec-derived DeviceProfile, a real sign-in screen and NetBird left to
+its own Android app. The user chose to stay on the Pi. Revisit only if asked.
+
 **v2 (deferred, deliberately): YouTube**, a generic app/plugin system, OTA
 updates. YouTube is not a missing feature — it is a separate project, and it is
 hard precisely because it needs a second graphical process. See *The v2 fork*
@@ -549,33 +555,40 @@ room. Deliberate, keep them:
   Quiet console verified showing only `mirad`'s two lines; the verbose GRUB
   entry verified to still show the full kernel and service output.
 - Distro skeleton builds and is config-verified; `mirad` written and compiling.
-- `mira_rpi4_defconfig` **not yet written** — VM target came first for iteration
-  speed. **It is the next session's work** (agreed 2026-09-14); plan below.
+- **`mira_rpi4_defconfig` exists and builds** (2026-10-04): an SD card image,
+  `out/mira-rpi4-<ver>-arm64.img`, from `./scripts/build.sh rpi4`. Bootlin
+  aarch64 glibc toolchain, the Raspberry Pi kernel fork (6.12.61-v8, the same
+  commit Buildroot's own raspberrypi4_64 defconfig pins, because rpivid and
+  bcm2835-codec live there), rpi-firmware with our `config.txt`/`cmdline.txt`,
+  mesa v3d+vc4, and genimage packing FAT32 boot + a single 700 MB ext4 root
+  (A/B, tryboot and the read-only root are still later work). Verified in the
+  built image, not assumed: flutter-pi and libflutter_engine.so are aarch64,
+  flutter-pi links GStreamer, the bundle and icudtl.dat are installed, and the
+  rootfs is 258 MB of 700 MB. **Nothing has been booted on real hardware yet.**
 
-  **Plan: the rpi4 target.** Everything above the kernel is shared (shell,
-  flutter-pi + patches, sd-event shim, netbird, audio init, dev config), so
-  this is a second defconfig, not a port.
-  1. *Boots and browses* (about a session): `mira_rpi4_defconfig` (aarch64,
-     glibc, Pi firmware + raspberrypi kernel, `config.txt`), aarch64
-     `flutter-engine-bin`, mesa v3d/vc4, CA certs, xkeyboard-config,
-     `S15mira-audio` for HDMI, netbird (Go cross-compiles), and an SD image
-     via genimage. **One plain rootfs partition first** - A/B, tryboot and the
-     read-only root come later. Goal: Pi boots to Home, shows the library,
-     NetBird sign-in works.
-  2. *Hardware playback* (the real unknown): replace `uridecodebin` with
-     pinned `v4l2slh265dec` / `v4l2h264dec`, confirm zero-copy DMA-BUF into
-     flutter-pi and measure CPU (a pegged core = software fallback). Patches
-     0005/0006 should be inert there - verify. Reassurance from the user: the
-     same Pi played 1080p well in Chromium kiosk with jellyfin-web, which was
-     almost certainly H.264 hardware decode with HEVC transcoded by the
-     server. **Fallback if HEVC direct play misbehaves:** drop HEVC from the
-     DeviceProfile so the server transcodes to H.264 - the Chromium setup,
-     minus the browser.
-  3. *Later*: A/B + tryboot + read-only root, CEC (`mira-inputd`), 4K mode
-     switching, first-run enrolment. A USB/2.4 GHz remote that acts as a
-     keyboard works meanwhile.
-  Testing needs the user to flash the SD card; a USB-serial adapter on the
-  Pi's UART makes boot debugging far faster than reported symptoms.
+  Also in this image, deliberately: **dropbear with root password `mira`** and
+  **the box's own LAN address on the connection screen**, because the Pi has no
+  serial adapter here and a black screen with no way in is unfixable. Both are
+  development conveniences, not appliance features.
+
+  Three traps paid for building it, all of which produced a *successful* build:
+  - **Arch gates drop the whole UI silently.**
+    `BR2_PACKAGE_FLUTTER_ENGINE_BIN_ARCH_SUPPORTS` was `default y if BR2_x86_64`
+    only, so on aarch64 the engine, flutter-pi and mira-shell vanished from the
+    config and the image packed happily with `mirad`, ssh and no launcher at
+    all. Check the *image*, never the exit code: `file target/usr/bin/flutter-pi`.
+  - **`scripts/build.sh` only reconfigured when the defconfig changed**, so
+    fixing that gate in a Config.in changed nothing and the "rebuild" took 17 s.
+    It now also reconfigures when any `Config.in` under the external tree is
+    newer than `.config`.
+  - **genimage's boot file list is substituted without being line-aware**: the
+    template's own comment named the `#BOOT_FILES#` token, so the list was
+    pasted into the comment too and genimage parsed it as options.
+
+  Step 2 is unchanged and remains the real unknown: the shell still hands
+  GStreamer the VM's `uridecodebin` pipeline, so what decoder the Pi actually
+  picks is unverified. Pin `v4l2slh265dec` / `v4l2h264dec` and measure CPU.
+
 - **Mira Shell exists and renders.** Flutter **3.47.4** pinned under
   `.toolchain/` by `scripts/setup-flutter.sh` (version + sha256 together).
   `flutter analyze` is clean and `flutter test` passes, including goldens

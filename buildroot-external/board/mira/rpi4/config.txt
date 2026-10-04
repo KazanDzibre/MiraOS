@@ -1,0 +1,24 @@
+# Mira - Raspberry Pi 4B firmware configuration.
+
+arm_64bit=1
+kernel=Image
+start_file=start4.elf
+fixup_file=fixup4.dat
+
+# The TV is the product's only screen: no rainbow splash, no borders.
+disable_overscan=1
+disable_splash=1
+
+# Full KMS. flutter-pi renders straight to DRM/KMS through vc4, not the legacy
+# firmware graphics stack. cma-384 leaves room for 1080p decode buffers next to
+# the UI plane.
+dtoverlay=vc4-kms-v3d,cma-384
+max_framebuffers=2
+
+# HDMI audio, and the analog jack with it.
+dtparam=audio=on
+
+# Serial console on the GPIO header. That is ttyS0 on a Pi 4 - the port
+# inittab's getty and mira-shell's log already expect. enable_uart=1 also pins
+# the core clock, without which the mini UART's baud rate drifts.
+enable_uart=1
