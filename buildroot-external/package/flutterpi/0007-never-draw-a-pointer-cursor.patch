@@ -1,0 +1,42 @@
+From: Mira <noreply@anthropic.com>
+Subject: [PATCH] never draw a pointer cursor
+
+Mira is driven from the sofa. Its remote (a Rii i25, and air-mouse remotes
+generally) sends OK as a left click, so the pointer device must stay alive and
+its events must keep reaching Flutter - but a cursor drifting across a TV is
+not part of the product, and Mira acts on the focused item rather than on
+whatever the pointer happens to be over.
+
+The app cannot do this from its side: Flutter's mouse cursor channel can ask
+for the "none" kind, but flutter-pi re-enables the cursor on every pointer
+motion, so it comes straight back.
+
+--- a/src/flutter-pi.c
++++ b/src/flutter-pi.c
+@@ -1713,8 +1713,12 @@
+ 
+     flutterpi = userdata;
+     (void) flutterpi;
++    (void) enabled;
+ 
+-    compositor_set_cursor(flutterpi->compositor, true, enabled, false, POINTER_KIND_NONE, false, VEC2F(0, 0));
++    /* Mira: a TV has no cursor. Pointer devices stay enabled - the remote's OK
++     * button is a left click - but nothing is drawn for them.
++     */
++    compositor_set_cursor(flutterpi->compositor, true, false, false, POINTER_KIND_NONE, false, VEC2F(0, 0));
+ }
+ 
+ static void on_move_cursor(void *userdata, struct vec2f delta) {
+@@ -1722,7 +1726,11 @@
+ 
+     flutterpi = userdata;
+ 
+-    compositor_set_cursor(flutterpi->compositor, true, true, false, POINTER_KIND_NONE, true, delta);
++    /* Mira: keep following the pointer so clicks land where Flutter expects,
++     * but leave it hidden. Upstream passes enabled=true here, which is what
++     * defeats asking for the "none" cursor kind from the Flutter side.
++     */
++    compositor_set_cursor(flutterpi->compositor, true, false, false, POINTER_KIND_NONE, true, delta);
+ }
+ 
+ static int on_user_input_open(const char *path, int flags, void *userdata) {

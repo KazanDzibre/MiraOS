@@ -1,5 +1,9 @@
+import 'dart:io';
+
+import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 
+import '../input/key_probe.dart';
 import '../input/pointer_mode.dart';
 import '../overseerr/discover_source.dart';
 import '../ui/discover_screen.dart';
@@ -44,7 +48,10 @@ class MiraApp extends StatefulWidget {
 }
 
 class _MiraAppState extends State<MiraApp> {
-  final PointerModeController _pointer = PointerModeController();
+  // Off: the remote is a d-pad, and its OK button turns out to be a mouse
+  // click rather than a key (the Rii i25, and air-mouse remotes generally).
+  // Hover must not move focus and no cursor is drawn - see _onPointerDown.
+  final PointerModeController _pointer = PointerModeController(enabled: false);
   final GlobalKey<NavigatorState> _navigator = GlobalKey<NavigatorState>();
   late final NetbirdMonitor? _netbird =
       widget.netbird == null ? null : (NetbirdMonitor(widget.netbird!)..start());
@@ -76,6 +83,20 @@ class _MiraAppState extends State<MiraApp> {
           checkServer: () => widget.source.movieCount().then((int _) => true),
         )));
     _libraryChanged.value++;
+  }
+
+  /// The remote's buttons, which arrive as clicks rather than keys on an
+  /// air-mouse remote (a Rii i25 here): left is OK, right is Back. Where the
+  /// pointer sits is irrelevant - the box has exactly one focus and OK acts on
+  /// it. Found on the real remote; the VM's injected key presses hid all of it.
+  void _onPointerDown(PointerDownEvent event) {
+    final BuildContext? focused = FocusManager.instance.primaryFocus?.context;
+    if (focused == null) return;
+    if (event.buttons == kSecondaryButton) {
+      Actions.maybeInvoke<BackIntent>(focused, const BackIntent());
+    } else {
+      Actions.maybeInvoke<ActivateIntent>(focused, const ActivateIntent());
+    }
   }
 
   Route<void> _route(WidgetBuilder builder) {
@@ -159,8 +180,24 @@ class _MiraAppState extends State<MiraApp> {
             ),
           ),
         );
+        // The remote's OK arrives as a click, so a click acts on whatever is
+        // focused - wherever the pointer happens to be - and the cursor is
+        // hidden, because there is nothing to aim.
+        Widget shown = MouseRegion(
+          cursor: SystemMouseCursors.none,
+          opaque: false,
+          child: Listener(
+            behavior: HitTestBehavior.translucent,
+            onPointerDown: _onPointerDown,
+            child: app,
+          ),
+        );
+
+        // Bring-up only: show what the remote sends, on the screen, because a
+        // TV box with no serial adapter has nowhere else to say it.
+        if (Platform.environment['MIRA_DEBUG_KEYS'] == '1') shown = KeyProbe(child: shown);
         final NetbirdMonitor? monitor = _netbird;
-        return monitor == null ? app : NetworkScope(monitor: monitor, onOpen: _openNetwork, child: app);
+        return monitor == null ? shown : NetworkScope(monitor: monitor, onOpen: _openNetwork, child: shown);
       },
     );
   }

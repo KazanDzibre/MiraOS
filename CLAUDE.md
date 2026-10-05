@@ -555,39 +555,71 @@ room. Deliberate, keep them:
   Quiet console verified showing only `mirad`'s two lines; the verbose GRUB
   entry verified to still show the full kernel and service output.
 - Distro skeleton builds and is config-verified; `mirad` written and compiling.
-- **`mira_rpi4_defconfig` exists and builds** (2026-10-04): an SD card image,
-  `out/mira-rpi4-<ver>-arm64.img`, from `./scripts/build.sh rpi4`. Bootlin
-  aarch64 glibc toolchain, the Raspberry Pi kernel fork (6.12.61-v8, the same
-  commit Buildroot's own raspberrypi4_64 defconfig pins, because rpivid and
-  bcm2835-codec live there), rpi-firmware with our `config.txt`/`cmdline.txt`,
-  mesa v3d+vc4, and genimage packing FAT32 boot + a single 700 MB ext4 root
-  (A/B, tryboot and the read-only root are still later work). Verified in the
-  built image, not assumed: flutter-pi and libflutter_engine.so are aarch64,
-  flutter-pi links GStreamer, the bundle and icudtl.dat are installed, and the
-  rootfs is 258 MB of 700 MB. **Nothing has been booted on real hardware yet.**
+- **The Pi boots, browses and plays** (2026-10-05, first hardware bring-up).
+  `./scripts/build.sh rpi4` -> `out/mira-rpi4-<ver>-arm64.img`, written to an
+  SD card. Verified on a Pi 4B Rev 1.4 against the real server: Home, the
+  library, artwork, the remote, sound, and H.264 video at **12% CPU with 2
+  dropped frames**. Not yet: HEVC (below), and nothing of the appliance layer
+  (A/B, read-only root, OTA, CEC).
 
-  Also in this image, deliberately: **dropbear with root password `mira`** and
-  **the box's own LAN address on the connection screen**, because the Pi has no
-  serial adapter here and a black screen with no way in is unfixable. Both are
-  development conveniences, not appliance features.
+  **Everything below was found on the hardware, and every one of them produced
+  a successful build or a silent fallback rather than an error.**
 
-  Three traps paid for building it, all of which produced a *successful* build:
-  - **Arch gates drop the whole UI silently.**
-    `BR2_PACKAGE_FLUTTER_ENGINE_BIN_ARCH_SUPPORTS` was `default y if BR2_x86_64`
-    only, so on aarch64 the engine, flutter-pi and mira-shell vanished from the
-    config and the image packed happily with `mirad`, ssh and no launcher at
-    all. Check the *image*, never the exit code: `file target/usr/bin/flutter-pi`.
-  - **`scripts/build.sh` only reconfigured when the defconfig changed**, so
-    fixing that gate in a Config.in changed nothing and the "rebuild" took 17 s.
-    It now also reconfigures when any `Config.in` under the external tree is
-    newer than `.config`.
-  - **genimage's boot file list is substituted without being line-aware**: the
-    template's own comment named the `#BOOT_FILES#` token, so the list was
-    pasted into the comment too and genimage parsed it as options.
+  *Buildroot symbols that drop silently.* Three in one evening: the engine's
+  arch gate said `BR2_x86_64` only, so flutter-pi and the shell vanished from
+  the image and it packed happily with no UI at all; `BR2_PACKAGE_KMOD_TOOLS`
+  depends on `BUSYBOX_SHOW_OTHERS`, so `/sbin/modprobe` stayed BusyBox's, which
+  has no xz and could not load a single module; `GST1_PLUGINS_GOOD_PLUGIN_V4L2`
+  without `_V4L2_PROBE` registers no decoders at all. **Check the image, never
+  the exit code.**
+  *Stamps.* `scripts/build.sh` now reconfigures when any `Config.in` changes -
+  it used to watch only the defconfig, so a dependency fix "rebuilt" in 17 s and
+  changed nothing. Package files (`mira-shell.sh`, `config.txt`, plugin options)
+  need `<pkg>-dirclean`; an edit alone is ignored.
+  *Modules.* The Pi kernel ships xz-compressed modules, so the image needs `xz`
+  (for kmod) **and** `BR2_PACKAGE_HOST_KMOD_XZ` (for depmod, or `modules.dep`
+  ships empty and modprobe says "module not found" with the file right there).
+  vc4/v3d cannot be built in: `CONFIG_DRM`/`SND_SOC` are modules in
+  bcm2711_defconfig, so kconfig reverts them; they are loaded from
+  `/etc/modules-load.d` instead.
+  *The UI must pin 1920x1080.* flutter-pi takes the panel's preferred mode and
+  derives Flutter's scale from physical size, which on a TV is 1 - so a 4K set
+  gets 3840x2160 logical pixels and the whole design renders half-size.
+  *The remote is clicks, not keys.* An air-mouse remote (Rii i25) sends OK as a
+  left click and Back as a right click, wherever the pointer happens to be. The
+  app acts on the focused item and ignores pointer position; flutter-pi patch
+  **0007** stops the cursor being drawn (asking for cursor "none" from Flutter
+  does not work - it re-enables on every motion).
+  *HDMI audio is strict.* vc4-hdmi takes 48 kHz 16-bit stereo and refuses
+  anything else with ALSA -524, which surfaces only as "Could not open audio
+  device" and a silent film - and it depended on the title's own sample rate.
+  The pipeline pins `format=S16LE,channels=2,rate=48000`.
+  *Video: the copy is the bottleneck, not the decode.* Measured on 2001:
+  software decode 89% CPU; hardware decode with flutter-pi's copy path 31% and
+  **614 dropped frames**; explicit pipeline with
+  `v4l2h264dec capture-io-mode=dmabuf` and NV12 straight to the appsink, 12%
+  and 2. The appsink must name a format: left open, it takes the decoder's
+  YUV, flutter-pi cannot make a GBM BO of it on vc4, and every frame is
+  dropped - sound with a black picture. `capture-io-mode` cannot be set on an
+  auto-plugged element, which is why the Pi needs the explicit pipeline
+  CLAUDE.md always said it would.
+  *HEVC hardware decode is blocked.* `/dev/video19` is `rpi-hevc-dec`, but
+  gst's `v4l2codecs` plugin registers 0 features: media devices appear under
+  `/sys/bus/media`, not the `/sys/class/media` it enumerates. Until that is
+  solved, HEVC decodes in software (89% CPU, stutter). The agreed way round is
+  the DeviceProfile fallback: direct-play H.264 <=1080p only and let the server
+  transcode HEVC.
+  *Getting in.* dropbear on **port 2222** as well as 22 (something on the box
+  drops 22 - packets vanish while other ports refuse, netbird's nftables the
+  likely culprit, unexplained), with a key in the rpi4 overlay. ssh is what
+  turned a reflash-per-question loop into bundle deploys over tar: build the
+  bundle, untar into `/usr/share/mira-shell`, `killall flutter-pi`, mirad
+  restarts it. Dev knobs on the box: `MIRA_VIDEO_FORMAT`, `MIRA_PIPELINE`
+  (templates with `{uri}`/`{format}`), `MIRA_DEBUG_KEYS`.
 
-  Step 2 is unchanged and remains the real unknown: the shell still hands
-  GStreamer the VM's `uridecodebin` pipeline, so what decoder the Pi actually
-  picks is unverified. Pin `v4l2slh265dec` / `v4l2h264dec` and measure CPU.
+  **Next:** build the pipeline from each title's container and codec rather
+  than the one hard-wired experiment (HEVC titles do not play at all under it),
+  decide the DeviceProfile change, and re-verify on the box.
 
 - **Mira Shell exists and renders.** Flutter **3.47.4** pinned under
   `.toolchain/` by `scripts/setup-flutter.sh` (version + sha256 together).

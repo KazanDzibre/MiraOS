@@ -1,0 +1,16 @@
+# Mira - rpi4 kernel additions on top of the Pi's bcm2711 defconfig.
+#
+# Let the kernel decompress its own modules. bcm2711_defconfig compresses them
+# with xz, and the first rpi4 image shipped a kmod built without liblzma, so
+# every module silently failed to load: no vc4, no /dev/dri, and flutter-pi
+# exited with "could not query drm device list" (2026-10-04). The image now
+# carries xz as well; this is the kernel-side half, so module loading cannot
+# depend on how userspace was built.
+#
+# Note what is NOT here: CONFIG_DRM_VC4=y. Building the display driver in is
+# the obvious hardening, but bcm2711_defconfig has CONFIG_DRM and
+# CONFIG_SND_SOC as modules, so kconfig reverts VC4 to m - a fragment that
+# merges, reports nothing, and does nothing. Making it stick means flipping
+# the Pi's own graphics and sound stack to built-in, which is a bigger change
+# than this problem warrants.
+CONFIG_MODULE_DECOMPRESS=y

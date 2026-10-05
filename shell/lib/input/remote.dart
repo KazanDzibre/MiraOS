@@ -35,6 +35,13 @@ class RemoteShortcuts extends StatelessWidget {
     SingleActivator(LogicalKeyboardKey.enter, includeRepeats: false): ActivateIntent(),
     SingleActivator(LogicalKeyboardKey.space, includeRepeats: false): ActivateIntent(),
     SingleActivator(LogicalKeyboardKey.gameButtonA, includeRepeats: false): ActivateIntent(),
+    // Remotes disagree about which key OK is, and a TV box cannot ask. These
+    // are the rest of the plausible ones; numpadEnter and accept are what HID
+    // remotes with a keypad tend to send.
+    SingleActivator(LogicalKeyboardKey.numpadEnter, includeRepeats: false): ActivateIntent(),
+    SingleActivator(LogicalKeyboardKey.accept, includeRepeats: false): ActivateIntent(),
+    SingleActivator(LogicalKeyboardKey.execute, includeRepeats: false): ActivateIntent(),
+    SingleActivator(LogicalKeyboardKey.gameButtonStart, includeRepeats: false): ActivateIntent(),
 
     // Back.
     SingleActivator(LogicalKeyboardKey.escape, includeRepeats: false): BackIntent(),

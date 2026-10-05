@@ -1,1 +1,1 @@
-root=/dev/mmcblk0p2 rootwait rw console=tty1 console=ttyS0,115200 quiet loglevel=3 vt.global_cursor_default=0 logo.nologo
+root=/dev/mmcblk0p2 rootwait rw console=tty1 console=ttyS0,115200 mira.debug=1 loglevel=4 vt.global_cursor_default=0 logo.nologo

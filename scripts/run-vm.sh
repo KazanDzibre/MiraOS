@@ -10,6 +10,8 @@
 #   --serial-log PATH             guest serial console to a file (shell logs)
 #   --serial-tcp PORT             guest serial console on 127.0.0.1:PORT, to log in
 #                                 and run commands while the window shows the shell
+#   --fullscreen                  no window chrome - the guest fills the screen,
+#                                 which is also what screen recordings want
 set -euo pipefail
 
 MIRA_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -21,10 +23,12 @@ SERIAL=0
 MONITOR=""
 SERIAL_LOG=""
 SERIAL_TCP=""
+FULLSCREEN=0
 
 while [ $# -gt 0 ]; do
 	case "$1" in
 		--gl)     GL=1 ;;
+		--fullscreen) FULLSCREEN=1 ;;
 		--serial) SERIAL=1 ;;
 		--monitor)    MONITOR="$2"; shift ;;
 		--serial-log) SERIAL_LOG="$2"; shift ;;
@@ -139,6 +143,10 @@ else
 	else
 		args+=(-serial null)
 	fi
+fi
+
+if [ "${FULLSCREEN}" = 1 ]; then
+	args+=(-full-screen)
 fi
 
 if [ -n "${MONITOR}" ]; then

@@ -1,0 +1,8 @@
+# Mira - development ssh.
+#
+# Two ports on purpose: 22 is dropped on the real box (packets vanish rather
+# than being refused, while other ports answer), which smells like the
+# nftables rules netbird installs. 2222 is the way in while that is unexplained.
+#
+# Development only. A shipping appliance should not answer on either.
+DROPBEAR_ARGS="-p 22 -p 2222"

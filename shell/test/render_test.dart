@@ -225,6 +225,26 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
+  testWidgets('a remote click acts on the focused item, wherever the pointer is', (WidgetTester tester) async {
+    sizeToTv(tester);
+    // Found on the real box: the remote's OK button is an air-mouse click, not
+    // a key, and the pointer sits wherever it was last waved. The VM's
+    // injected Enter presses could never have shown this.
+    await tester.pumpWidget(const MiraApp(source: DemoLibrarySource()));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+    expect(FocusManager.instance.primaryFocus?.debugLabel, 'rail-0-0');
+
+    // A corner with nothing under it.
+    await tester.tapAt(const Offset(1890, 24));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+    expect(find.byType(DetailScreen), findsOneWidget,
+        reason: 'OK did not open the focused film');
+
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets('every screen is reachable by d-pad alone', (WidgetTester tester) async {
     sizeToTv(tester);
     // The rule that is expensive to retrofit, asserted rather than trusted:

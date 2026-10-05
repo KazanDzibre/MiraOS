@@ -1,0 +1,29 @@
+#!/bin/sh
+#
+# If the box still has no default route, ask for an address on whichever wired
+# interface has a cable in it.
+#
+# /etc/network/interfaces names the interfaces it knows about; this covers the
+# case where the kernel called the port something else entirely. A box that
+# cannot reach the server is useless, and from the sofa that failure looks
+# identical to a server that is switched off.
+
+case "$1" in
+	start)
+		route -n 2>/dev/null | grep -q '^0\.0\.0\.0' && exit 0
+		for dev in /sys/class/net/*; do
+			name="$(basename "${dev}")"
+			[ "${name}" = "lo" ] && continue
+			[ -e "${dev}/wireless" ] && continue
+			ifconfig "${name}" up 2>/dev/null
+			[ "$(cat "${dev}/carrier" 2>/dev/null)" = "1" ] || continue
+			printf 'Network fallback: trying %s: ' "${name}"
+			if udhcpc -i "${name}" -t 5 -T 2 -n -q >/dev/null 2>&1; then
+				echo "OK"
+				exit 0
+			fi
+			echo "no lease"
+		done
+		;;
+esac
+exit 0

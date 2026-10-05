@@ -1,0 +1,13 @@
+# Mira - BusyBox applets to leave out.
+#
+# BusyBox provides its own modprobe/insmod, and its symlinks are what end up
+# in /sbin. It was built without seamless decompression, so it cannot load the
+# Pi kernel's xz-compressed modules - vc4 never loaded, there was no /dev/dri,
+# and flutter-pi exited with "could not query drm device list" (2026-10-04).
+# kmod's tools handle xz; turning BusyBox's off means they are the only ones.
+# CONFIG_MODPROBE is not set
+# CONFIG_INSMOD is not set
+# CONFIG_RMMOD is not set
+# CONFIG_LSMOD is not set
+# CONFIG_MODINFO is not set
+# CONFIG_DEPMOD is not set

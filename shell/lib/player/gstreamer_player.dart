@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
@@ -40,6 +41,19 @@ class GstreamerMiraPlayer implements MiraPlayer {
   /// `v4l2slh265dec` / `v4l2h264dec` pipelines from the item's codec instead.
   /// That change belongs here and nowhere else.
   ///
+  ///  * **BGRA, explicitly, before the appsink.** On the Pi, EGL reports 126
+  ///    importable formats including I420, so the appsink happily takes the
+  ///    software decoder's native YUV. flutter-pi then cannot hand it to the
+  ///    GPU: the frame is ordinary memory rather than a dmabuf, and its copy
+  ///    path fails with "Couldn't create GBM BO to copy video frame into" -
+  ///    vc4's GBM has no such YUV format. Every frame is dropped, so the film
+  ///    plays with sound and a black picture (found on the real box,
+  ///    2026-10-05). Naming a format GBM can allocate fixes it. The cost is a
+  ///    CPU colour conversion per frame, which is only acceptable while the
+  ///    decoders are the software ones - pinning `v4l2h264dec` /
+  ///    `v4l2slh265dec` and keeping their dmabufs is the next step, and it
+  ///    belongs here.
+  ///
   ///  * **A `videoconvert` before the appsink.** flutter-pi restricts the
   ///    appsink's caps to the formats EGL can import as DMA-BUF. A software
   ///    decoder outputs I420, and when that is not in the list the video pad
@@ -56,11 +70,48 @@ class GstreamerMiraPlayer implements MiraPlayer {
   ///    channel, so films played their music and effects with no voices.
   ///    audioconvert's downmix folds the centre and surrounds in. Found
   ///    2026-09-14; almost every film in the library is 5.1 or 7.1.
-  static String pipelineFor(Uri source) {
+  ///
+  ///    The format and rate are pinned for the same reason the channels are.
+  ///    The Pi's HDMI audio is an IEC958 device: it takes 48 kHz 16-bit stereo
+  ///    and refuses anything else outright (ALSA -524, ENOTSUPP), which the
+  ///    shell reported only as "Could not open audio device for playback" and
+  ///    a film that played in silence. Whether it happened depended on the
+  ///    film's own sample rate, which is why it worked on one title and not
+  ///    the next (found on the box, 2026-10-05). A 48 kHz 16-bit tone played
+  ///    through the same ALSA default device without complaint.
+  /// The frame format asked of the appsink.
+  ///
+  /// BGRA by default because flutter-pi can always copy that into a GBM buffer.
+  /// Overridable with MIRA_VIDEO_FORMAT so the right answer for the Pi's
+  /// hardware decoder (NV12, which should arrive as a dmabuf and need no copy
+  /// at all) can be measured on the box rather than guessed at.
+  static String get videoFormat {
+    final String? chosen = Platform.environment['MIRA_VIDEO_FORMAT'];
+    return chosen == null || chosen.isEmpty ? 'BGRA' : chosen;
+  }
+
+  /// A whole pipeline, for bring-up experiments on the real box.
+  ///
+  /// `{uri}` and `{format}` are substituted. The Pi needs an explicit pipeline
+  /// eventually - CLAUDE.md says so, and the reason is now measured: the
+  /// hardware decoder hands over MMAP buffers unless it is told
+  /// `capture-io-mode=dmabuf`, and a property cannot be set on an element that
+  /// uridecodebin auto-plugged. Trying those pipelines over ssh beats
+  /// rebuilding the bundle for each one.
+  static String? get pipelineOverride {
+    final String? template = Platform.environment['MIRA_PIPELINE'];
+    return template == null || template.isEmpty ? null : template;
+  }
+
+  static String pipelineFor(Uri source, {String format = 'BGRA'}) {
     final String uri = source.toString().replaceAll('"', '%22');
+    final String? override = pipelineOverride;
+    if (override != null) {
+      return override.replaceAll('{uri}', uri).replaceAll('{format}', format);
+    }
     return 'uridecodebin uri="$uri" name="src" '
-        'src. ! video/x-raw ! queue ! videoconvert ! appsink sync=true name="sink" '
-        'src. ! audio/x-raw ! queue ! audioconvert ! audioresample ! audio/x-raw,channels=2 ! autoaudiosink';
+        'src. ! video/x-raw ! queue ! videoconvert ! video/x-raw,format=$format ! appsink sync=true name="sink" '
+        'src. ! audio/x-raw ! queue ! audioconvert ! audioresample ! audio/x-raw,format=S16LE,channels=2,rate=48000 ! autoaudiosink';
   }
 
   void _fail(String message, [Object? detail]) {
@@ -124,7 +175,7 @@ class GstreamerMiraPlayer implements MiraPlayer {
     _status.value = PlaybackStatus(state: PlaybackState.opening, position: startAt);
 
     final VideoPlayerController controller =
-        FlutterpiVideoPlayerController.withGstreamerPipeline(pipelineFor(source));
+        FlutterpiVideoPlayerController.withGstreamerPipeline(pipelineFor(source, format: videoFormat));
     _controller = controller;
     controller.addListener(_onValue);
 

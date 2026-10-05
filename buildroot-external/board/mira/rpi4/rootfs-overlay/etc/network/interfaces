@@ -1,0 +1,19 @@
+# Mira - wired networking on the Pi.
+#
+# Both names on purpose: the Pi 4's bcmgenet port is eth0 on this kernel, but
+# newer naming calls it end0, and a TV box must not care which kernel it was
+# built against. ifup reports an error for whichever one does not exist and
+# carries on with the other; S41network-fallback covers the rest.
+
+auto lo
+iface lo inet loopback
+
+auto eth0
+iface eth0 inet dhcp
+  wait-delay 15
+  hostname $(hostname)
+
+auto end0
+iface end0 inet dhcp
+  wait-delay 15
+  hostname $(hostname)
