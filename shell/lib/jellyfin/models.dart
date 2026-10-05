@@ -168,13 +168,23 @@ class MediaItem {
   /// Whether this will direct-play on a Pi 4, from the same envelope the
   /// DeviceProfile declares. Used only to *label* an item in the UI - the
   /// server makes the actual decision.
+  ///
+  /// Keep this in step with [JellyfinDeviceProfile]: H.264 to 1080p with AAC
+  /// audio, and nothing else. HEVC is deliberately not here - the box asks the
+  /// server to transcode it, so a badge claiming direct play would be a lie.
   bool get likelyDirectPlay {
     final String? codec = videoCodec?.toLowerCase();
     final int w = width ?? 0;
     final int h = height ?? 0;
-    if (codec == 'hevc' || codec == 'h265') return w <= 3840 && h <= 2160;
-    if (codec == 'h264' || codec == 'avc') return w <= 1920 && h <= 1080;
-    return false;
+    if (codec != 'h264' && codec != 'avc') return false;
+    if (w > 1920 || h > 1080) return false;
+    final List<MediaTrack> audio = audioTracks;
+    if (audio.isEmpty) return true;
+    // The default track is the one that would play.
+    final MediaTrack track =
+        audio.firstWhere((MediaTrack t) => t.isDefault, orElse: () => audio.first);
+    final String? audioCodec = track.codec?.toLowerCase();
+    return audioCodec == null || audioCodec == 'aac';
   }
 
   static MediaItem fromJson(Map<String, Object?> json) {

@@ -82,7 +82,55 @@ of the box's perceived quality lives there.
 Display: TV is mixed-resolution. UI plane renders at **1080p always**; video
 output mode-switches to match content so 4K HEVC gets a native path.
 
-Audio: declare AC3/DTS passthrough in the same profile; let the TV decode.
+Audio: AC3/DTS passthrough was the plan; **it is not what ships**, see below.
+
+### H.264 only — the profile shipped on 2026-10-05
+
+The table above is what the *silicon* can do. What the *image* can do is
+narrower, and the DeviceProfile now declares the narrower thing: **H.264 to
+1080p with AAC audio, and nothing else.** Everything else the server
+transcodes. This was the user's call ("then we know everything is going to work
+on pie") after HEVC titles would not play at all on the box.
+
+Why, in order of how much each matters:
+
+- **HEVC hardware decode is unreachable in this image.** `v4l2codecs` registers
+  zero features because it enumerates `/sys/class/media` while the stateless
+  decoder's media nodes live under `/sys/bus/media`. So HEVC had no hardware
+  path and no viable software one - and HEVC is **82% of this library** (295 of
+  359 titles: 295 HEVC, 63 H.264, 1 AV1). Fixing that enumeration is the single
+  highest-value change available; `device_profile.dart` carries the commented
+  HEVC block so restoring direct play is a small edit in two files.
+- **AC3/DTS passthrough is declared nowhere, deliberately.** Nothing on the box
+  can pass them through: vc4-hdmi via ALSA's `default` takes 48 kHz S16LE
+  stereo and refuses the rest outright. The server's downmix is better than
+  ours anyway (it folds the centre channel with proper gains, where ALSA's plug
+  route policy simply drops it). A film with AC3 and H.264 is **remuxed**, not
+  re-encoded - the server copies the video and converts only the audio.
+- **AAC alone, not AAC and MP3**, so the pipeline has exactly one audio parser
+  to plug. The library has 298 AAC tracks and no MP3 ones.
+
+Measured on the box the same day, all with the pipelines the shell actually
+generates:
+
+| Path | CPU (one core) | Dropped frames |
+|---|---|---|
+| Software decode (where this started) | 89% | many |
+| Auto-plugged hardware decode, frame copied | 31% | some |
+| **Direct play, mp4, explicit pipeline** | **6%** | 0 |
+| **Server transcode, HLS/TS, same pipeline** | **8%** | 0 |
+
+**The server side needs nothing changed to work.** Jellyfin 10.11.11 transcodes
+1080p HEVC to H.264 in software at **4.9x realtime** (measured fresh, by how
+fast it produces HLS segments), so one TV needs about a fifth of what it has.
+`HardwareAccelerationType` is `none`; turning on QSV/VAAPI would cut that cost
+hard but needs a look at the server's `/dev/dri`, and is an optimisation rather
+than a fix.
+
+One thing *was* wrong and is fixed: `MaxStreamingBitrate` was 120 Mbps, and
+since it is also the transcode target the server was aiming at 119 Mbps of
+H.264 for a 1080p film. It is 20 Mbps now, defined once in
+`JellyfinDeviceProfile.defaultMaxStreamingBitrate`.
 
 ---
 
@@ -204,6 +252,35 @@ autoplugging the wrong element.
 **Always pin decoder elements explicitly** (`v4l2h264dec`, `v4l2slh265dec`).
 Never use `decodebin` in a Mira pipeline. After any pipeline change, verify with
 CPU measurement — if a core pegs, it fell back and the pipeline is wrong.
+
+There is a second, stronger reason the pipeline must be explicit, found on the
+box 2026-10-05: the decoder hands over **MMAP buffers unless told
+`capture-io-mode=dmabuf`**, and a property cannot be set on an element
+`uridecodebin` auto-plugged. Without it flutter-pi copies every frame (31% of a
+core instead of 12%). Nor can the caps feature `video/x-raw(memory:DMABuf)`
+force it: flutter-pi's appsink advertises plain `video/x-raw` only
+(`player.c`, the importable-format list), so a pipeline declaring the feature
+cannot link at all.
+
+So `GstreamerMiraPlayer.pipelineFor` builds the pipeline **per container**, and
+the DeviceProfile is what keeps that set small — mp4 and mkv direct play, HLS
+otherwise, always H.264. The two files point at each other; change one without
+the other and the box gets a stream it cannot open.
+
+**A queue per branch, and it is load-bearing.** A demuxer pushes every branch
+from one streaming thread, so without queues the first sink blocks its thread
+waiting to preroll while the other branch is never fed. The failure is silent
+and looks nothing like the cause: both pads negotiate caps correctly,
+`Pipeline is PREROLLING` is the last line printed, no error is ever posted, and
+`initialize()` simply hangs until the 30 s timeout. Cost an hour against a real
+transcode. `test/pipeline_format_test.dart` pins one queue per branch.
+
+**`gst-launch-1.0` on the box is the fast way to test any of this** - it needs
+no bundle rebuild and no remote. Generate the exact string the shell would use
+(a one-line widget test that writes `pipelineFor(...)` to a file), swap
+`appsink`/`autoaudiosink` for `fakesink sync=true`, and measure CPU from
+`/proc/<pid>/stat`. Note the Pi image has **no `timeout`, no `python3`, no
+`gst-play-1.0`** - background the process and `kill` it instead.
 
 ### Video in the VM - was broken, now solved (2026-09-13)
 
@@ -605,10 +682,9 @@ room. Deliberate, keep them:
   CLAUDE.md always said it would.
   *HEVC hardware decode is blocked.* `/dev/video19` is `rpi-hevc-dec`, but
   gst's `v4l2codecs` plugin registers 0 features: media devices appear under
-  `/sys/bus/media`, not the `/sys/class/media` it enumerates. Until that is
-  solved, HEVC decodes in software (89% CPU, stutter). The agreed way round is
-  the DeviceProfile fallback: direct-play H.264 <=1080p only and let the server
-  transcode HEVC.
+  `/sys/bus/media`, not the `/sys/class/media` it enumerates. **Taken**, on
+  2026-10-05: the DeviceProfile fallback, H.264 <=1080p only, server transcodes
+  the rest. See *H.264 only* under *Hardware reality*.
   *Getting in.* dropbear on **port 2222** as well as 22 (something on the box
   drops 22 - packets vanish while other ports refuse, netbird's nftables the
   likely culprit, unexplained), with a key in the rpi4 overlay. ssh is what
@@ -617,9 +693,19 @@ room. Deliberate, keep them:
   restarts it. Dev knobs on the box: `MIRA_VIDEO_FORMAT`, `MIRA_PIPELINE`
   (templates with `{uri}`/`{format}`), `MIRA_DEBUG_KEYS`.
 
-  **Next:** build the pipeline from each title's container and codec rather
-  than the one hard-wired experiment (HEVC titles do not play at all under it),
-  decide the DeviceProfile change, and re-verify on the box.
+  *Every title plays, as of 2026-10-05.* The hard-wired mp4-only experiment is
+  gone: `pipelineFor` picks the demuxer from the stream's container (qtdemux,
+  matroskademux, or hlsdemux+tsdemux for a transcode) and always decodes H.264
+  through `v4l2h264dec capture-io-mode=dmabuf`. Both shapes were run on the box
+  as the exact strings the shell generates: direct-play mp4 **6% of one core**,
+  server-transcoded HLS **8%**, no dropped frames either way. The image also
+  gained `GST1_PLUGINS_GOOD_PLUGIN_AUDIOPARSERS` - without `aacparse` the
+  transcode's ADTS audio cannot link to `avdec_aac`, and that failure is one of
+  the silent preroll hangs described in *Known trap* above.
+
+  **Next:** the appliance layer (A/B, read-only root, OTA, CEC), and the
+  `v4l2codecs` enumeration bug, which is what stands between this box and HEVC
+  direct play.
 
 - **Mira Shell exists and renders.** Flutter **3.47.4** pinned under
   `.toolchain/` by `scripts/setup-flutter.sh` (version + sha256 together).

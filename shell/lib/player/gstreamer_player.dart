@@ -25,93 +25,150 @@ class GstreamerMiraPlayer implements MiraPlayer {
   @override
   ValueListenable<PlaybackStatus> get status => _status;
 
-  /// The GStreamer pipeline for a stream.
-  ///
-  /// Two deliberate departures from flutter-pi's default
-  /// (`uridecodebin ! video/x-raw ! appsink`):
-  ///
-  ///  * **An audio branch.** The default has none and flutter-pi's volume call
-  ///    is a stub, so without this every film plays in silence.
-  ///  * **The URI is embedded.** flutter-pi only injects a URI into its default
-  ///    pipeline, never into a custom one.
-  ///
-  /// `uridecodebin` autoplugs decoders. That is acceptable only in the VM, which
-  /// has no hardware decoder to fall away from. On the Pi it is exactly the trap
-  /// in CLAUDE.md (flutter-pi #224, #230): the rpi4 target must build explicit
-  /// `v4l2slh265dec` / `v4l2h264dec` pipelines from the item's codec instead.
-  /// That change belongs here and nowhere else.
-  ///
-  ///  * **BGRA, explicitly, before the appsink.** On the Pi, EGL reports 126
-  ///    importable formats including I420, so the appsink happily takes the
-  ///    software decoder's native YUV. flutter-pi then cannot hand it to the
-  ///    GPU: the frame is ordinary memory rather than a dmabuf, and its copy
-  ///    path fails with "Couldn't create GBM BO to copy video frame into" -
-  ///    vc4's GBM has no such YUV format. Every frame is dropped, so the film
-  ///    plays with sound and a black picture (found on the real box,
-  ///    2026-10-05). Naming a format GBM can allocate fixes it. The cost is a
-  ///    CPU colour conversion per frame, which is only acceptable while the
-  ///    decoders are the software ones - pinning `v4l2h264dec` /
-  ///    `v4l2slh265dec` and keeping their dmabufs is the next step, and it
-  ///    belongs here.
-  ///
-  ///  * **A `videoconvert` before the appsink.** flutter-pi restricts the
-  ///    appsink's caps to the formats EGL can import as DMA-BUF. A software
-  ///    decoder outputs I420, and when that is not in the list the video pad
-  ///    cannot link at all: GStreamer warns "delayed linking failed", the
-  ///    pipeline never prerolls, and initialize() hangs with no error. Found in
-  ///    the VM (H.264 High yuv420p, software decoded). On the Pi's V4L2 path
-  ///    the decoder already emits an importable format and this is passthrough.
-  ///
-  ///  * **Audio downmixed to stereo by GStreamer, not by ALSA.** Without the
-  ///    `channels=2` filter a 5.1 or 7.1 film reaches ALSA with every channel,
-  ///    and the `default` device's plug plugin converts to stereo with its COPY
-  ///    route policy: front left to left, front right to right, and every other
-  ///    channel dropped (alsa-lib pcm_plug.c). Dialogue lives in the centre
-  ///    channel, so films played their music and effects with no voices.
-  ///    audioconvert's downmix folds the centre and surrounds in. Found
-  ///    2026-09-14; almost every film in the library is 5.1 or 7.1.
-  ///
-  ///    The format and rate are pinned for the same reason the channels are.
-  ///    The Pi's HDMI audio is an IEC958 device: it takes 48 kHz 16-bit stereo
-  ///    and refuses anything else outright (ALSA -524, ENOTSUPP), which the
-  ///    shell reported only as "Could not open audio device for playback" and
-  ///    a film that played in silence. Whether it happened depended on the
-  ///    film's own sample rate, which is why it worked on one title and not
-  ///    the next (found on the box, 2026-10-05). A 48 kHz 16-bit tone played
-  ///    through the same ALSA default device without complaint.
   /// The frame format asked of the appsink.
   ///
-  /// BGRA by default because flutter-pi can always copy that into a GBM buffer.
-  /// Overridable with MIRA_VIDEO_FORMAT so the right answer for the Pi's
-  /// hardware decoder (NV12, which should arrive as a dmabuf and need no copy
-  /// at all) can be measured on the box rather than guessed at.
+  /// NV12 wherever a V4L2 decoder exists, because that is what the Pi's
+  /// hardware decoder emits and it arrives as a dmabuf flutter-pi can import
+  /// without a copy. BGRA otherwise, because a *software* decoder's frames are
+  /// ordinary memory and flutter-pi's copy path can only build a GBM buffer
+  /// out of an RGB format - with NV12 there, vc4's GBM refuses the allocation
+  /// and every frame is dropped, which looks like a black picture with working
+  /// sound (found on the box, 2026-10-05).
+  ///
+  /// MIRA_VIDEO_FORMAT overrides, for measuring on the box.
   static String get videoFormat {
     final String? chosen = Platform.environment['MIRA_VIDEO_FORMAT'];
-    return chosen == null || chosen.isEmpty ? 'BGRA' : chosen;
+    if (chosen != null && chosen.isNotEmpty) return chosen;
+    return hasV4l2Decoder ? 'NV12' : 'BGRA';
+  }
+
+  /// Whether this box has the Pi's V4L2 M2M H.264 decoder.
+  ///
+  /// `/dev/video10` is bcm2835-codec's decode node. Testing for the device
+  /// rather than for "am I a Pi" keeps the two targets running the same code:
+  /// the VM has no such node and falls back to the software pipeline, which is
+  /// what it should do. MIRA_HWDEC forces it either way for experiments.
+  static bool get hasV4l2Decoder {
+    final String? forced = Platform.environment['MIRA_HWDEC'];
+    if (forced != null && forced.isNotEmpty) return forced != '0';
+    return File('/dev/video10').existsSync();
   }
 
   /// A whole pipeline, for bring-up experiments on the real box.
   ///
-  /// `{uri}` and `{format}` are substituted. The Pi needs an explicit pipeline
-  /// eventually - CLAUDE.md says so, and the reason is now measured: the
-  /// hardware decoder hands over MMAP buffers unless it is told
-  /// `capture-io-mode=dmabuf`, and a property cannot be set on an element that
-  /// uridecodebin auto-plugged. Trying those pipelines over ssh beats
+  /// `{uri}` and `{format}` are substituted. Trying a pipeline over ssh beats
   /// rebuilding the bundle for each one.
   static String? get pipelineOverride {
     final String? template = Platform.environment['MIRA_PIPELINE'];
     return template == null || template.isEmpty ? null : template;
   }
 
-  static String pipelineFor(Uri source, {String format = 'BGRA'}) {
+  /// The demuxer chain for a stream, by container, ending in the element the
+  /// branches below link to (`name=d`).
+  ///
+  /// Only three containers can arrive, and that is the DeviceProfile's doing:
+  /// it direct-plays H.264 in mp4 and mkv and takes everything else as an HLS
+  /// transcode. Adding a container to the profile without adding it here
+  /// yields a stream the box cannot open, which is why both carry a comment
+  /// pointing at the other.
+  static String? _demuxFor(Uri source) {
+    final String path = source.path.toLowerCase();
+    if (path.endsWith('.m3u8')) {
+      // Jellyfin's transcode. hlsdemux fetches the segments; they are MPEG-TS
+      // because the profile asks for SegmentContainer=ts.
+      return 'hlsdemux ! tsdemux name=d';
+    }
+    if (path.endsWith('.mkv') || path.endsWith('.webm')) {
+      return 'matroskademux name=d';
+    }
+    if (path.endsWith('.mp4') || path.endsWith('.m4v') || path.endsWith('.mov')) {
+      return 'qtdemux name=d';
+    }
+    if (path.endsWith('.ts') || path.endsWith('.mpegts')) {
+      return 'tsdemux name=d';
+    }
+    return null;
+  }
+
+  /// The GStreamer pipeline for a stream.
+  ///
+  /// Two shapes, chosen by whether a hardware decoder exists.
+  ///
+  /// **The Pi: explicit, hardware, zero-copy.** `v4l2h264dec` is named rather
+  /// than auto-plugged, which is the trap in CLAUDE.md (flutter-pi #224, #230)
+  /// and also a hard requirement rather than a preference: the decoder hands
+  /// over MMAP buffers unless told `capture-io-mode=dmabuf`, and a property
+  /// cannot be set on an element `uridecodebin` auto-plugged. Measured on the
+  /// box, 2026-10-05, all three on the same film: software decode 89% of a
+  /// core, auto-plugged hardware decode with the frame copy 31%, this pipeline
+  /// 12% with two dropped frames. A server-transcoded HLS stream through the
+  /// same pipeline: 10% and no drops.
+  ///
+  /// **A queue per branch, and they are load-bearing.** A demuxer pushes every
+  /// branch from one streaming thread, so without them the first sink blocks
+  /// its thread waiting to preroll while the other branch is never fed, and
+  /// the pipeline deadlocks: both pads negotiate caps, "Pipeline is
+  /// PREROLLING" is the last thing printed, and `initialize()` hangs until the
+  /// 30 s timeout with no error anywhere. Found exactly that way on the box
+  /// against a real transcode.
+  ///
+  /// **The VM: `uridecodebin`, software, BGRA.** Acceptable only because there
+  /// is no hardware decoder to fall away from; see `videoFormat` and the
+  /// `videoconvert` note below for why the format is named.
+  ///
+  /// Both shapes end their audio branch the same way, and all three caps there
+  /// are load-bearing:
+  ///
+  ///  * **channels=2** - without it a 5.1 or 7.1 film reaches ALSA with every
+  ///    channel, and the `default` device's plug plugin converts to stereo with
+  ///    its COPY route policy: front left to left, front right to right, every
+  ///    other channel dropped (alsa-lib pcm_plug.c). Dialogue lives in the
+  ///    centre channel, so films played their music and effects with no
+  ///    voices. audioconvert's downmix folds the centre and surrounds in.
+  ///    Found 2026-09-14; nearly every film in the library is 5.1 or 7.1.
+  ///  * **format=S16LE, rate=48000** - the Pi's HDMI audio is an IEC958
+  ///    device: it takes 48 kHz 16-bit stereo and refuses anything else
+  ///    outright (ALSA -524, ENOTSUPP), which surfaced only as "Could not open
+  ///    audio device for playback" and a film that played in silence. Whether
+  ///    it happened depended on the film's own sample rate, which is why it
+  ///    worked on one title and not the next (found on the box, 2026-10-05).
+  ///
+  /// The URI is embedded because flutter-pi only injects one into its own
+  /// default pipeline, never into a custom one.
+  /// [hardware] overrides the `/dev/video10` probe, so tests can exercise the
+  /// Pi's pipelines on a machine that has no V4L2 decoder.
+  static String pipelineFor(Uri source, {String? format, bool? hardware}) {
     final String uri = source.toString().replaceAll('"', '%22');
+    final bool useHardware = hardware ?? hasV4l2Decoder;
+    final String chosenFormat =
+        format ?? (hardware == null ? videoFormat : (useHardware ? 'NV12' : 'BGRA'));
     final String? override = pipelineOverride;
     if (override != null) {
-      return override.replaceAll('{uri}', uri).replaceAll('{format}', format);
+      return override
+          .replaceAll('{uri}', uri)
+          .replaceAll('{format}', chosenFormat);
     }
-    return 'uridecodebin uri="$uri" name="src" '
-        'src. ! video/x-raw ! queue ! videoconvert ! video/x-raw,format=$format ! appsink sync=true name="sink" '
-        'src. ! audio/x-raw ! queue ! audioconvert ! audioresample ! audio/x-raw,format=S16LE,channels=2,rate=48000 ! autoaudiosink';
+
+    final String? demux = useHardware ? _demuxFor(source) : null;
+    if (demux == null) {
+      // No hardware decoder, or a container this pipeline does not know. The
+      // software path plays it rather than failing outright.
+      return 'uridecodebin uri="$uri" name="src" '
+          'src. ! video/x-raw ! queue ! videoconvert ! video/x-raw,format=$chosenFormat ! appsink sync=true name="sink" '
+          'src. ! audio/x-raw ! queue ! audioconvert ! audioresample ! audio/x-raw,format=S16LE,channels=2,rate=48000 ! autoaudiosink';
+    }
+
+    // Two seconds of each stream, counted in time rather than buffers so a
+    // high-bitrate film does not quietly get a shorter queue than a low one.
+    const String queue =
+        'queue max-size-buffers=0 max-size-bytes=0 max-size-time=2000000000';
+    return 'souphttpsrc location="$uri" retries=3 timeout=15 ! $demux '
+        'd. ! video/x-h264 ! $queue ! h264parse ! '
+        'v4l2h264dec capture-io-mode=dmabuf ! '
+        'video/x-raw,format=$chosenFormat ! appsink sync=true name="sink" '
+        'd. ! audio/mpeg ! $queue ! aacparse ! avdec_aac ! '
+        'audioconvert ! audioresample ! '
+        'audio/x-raw,format=S16LE,channels=2,rate=48000 ! autoaudiosink';
   }
 
   void _fail(String message, [Object? detail]) {
@@ -175,7 +232,7 @@ class GstreamerMiraPlayer implements MiraPlayer {
     _status.value = PlaybackStatus(state: PlaybackState.opening, position: startAt);
 
     final VideoPlayerController controller =
-        FlutterpiVideoPlayerController.withGstreamerPipeline(pipelineFor(source, format: videoFormat));
+        FlutterpiVideoPlayerController.withGstreamerPipeline(pipelineFor(source));
     _controller = controller;
     controller.addListener(_onValue);
 

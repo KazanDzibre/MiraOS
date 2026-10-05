@@ -447,7 +447,7 @@ class JellyfinClient {
   Future<PlaybackPlan> planPlayback(
     MediaItem item, {
     Duration startAt = Duration.zero,
-    int maxStreamingBitrate = 120000000,
+    int maxStreamingBitrate = JellyfinDeviceProfile.defaultMaxStreamingBitrate,
     int? audioStreamIndex,
     int? subtitleStreamIndex,
   }) async {
@@ -491,7 +491,16 @@ class JellyfinClient {
 
     final Uri url;
     if (supportsDirect && transcodingUrl == null) {
-      url = _uri('/Videos/${item.id}/stream', <String, String>{
+      // The container goes in the *path*, as `stream.mkv` rather than
+      // `stream`, because that extension is how the player picks its demuxer:
+      // the Pi's pipeline names `matroskademux` or `qtdemux` explicitly (it
+      // must, since an auto-plugged decoder cannot be told to hand over
+      // dmabufs). Without it every direct play falls back to the software
+      // pipeline and pegs a core. Jellyfin serves both spellings.
+      final String? container = (source['Container'] as String?)?.toLowerCase();
+      final String ext =
+          container == null || container.isEmpty ? '' : '.${container.split(',').first}';
+      url = _uri('/Videos/${item.id}/stream$ext', <String, String>{
         'static': 'true',
         'mediaSourceId': (source['Id'] as String?) ?? item.id,
         if (_token != null) 'api_key': _token!,
