@@ -429,6 +429,52 @@ longer valid". `JellyfinLibrarySource._signIn` now shares one in-flight sign-in;
 refuses superseded tokens the way Jellyfin does. Demo-data tests cannot catch
 this class of bug - the demo source never signs in.
 
+**Playback degrades over a session, and it is not what it looks like**
+(2026-10-07, unfinished - this is the live investigation). The symptom: a
+small hitch every so often, "like a lost frame", noticeable after twenty or
+thirty minutes. Ruled out, each by measurement rather than reasoning:
+
+- **Not dropped frames.** GStreamer reported *zero* QoS drops across an entire
+  evening and every film. Whatever the eye sees, nothing is being discarded.
+- **Not the decoder.** `v4l2h264dec`'s thread uses under 2% of a core.
+- **Not the server or the network.** A 25-minute run of the same stream to a
+  `fakesink` on the box: 0 drops, flat 17% CPU, flat memory, 45 C. The server
+  idles at 97% and encodes at 9.3x realtime.
+- **Not frame copying.** This was the best theory and it was wrong. A counter
+  patched into flutter-pi's `frame.c` prints `planes/s: dmabuf 48, copied 0`:
+  every frame is handed over as a dmabuf, zero copies, which is exactly what
+  the design wants.
+- **Not the display refresh**, though the arithmetic is right that 23.976 fps
+  on a 60.000 Hz output cannot divide. Forcing 1920x1080@24 made it *worse*
+  (it also drops the UI to 24 Hz), and the user reports hitches far more often
+  than the ~42 s that a 24.000/23.976 mismatch would give.
+
+**What does correlate: how long `flutter-pi` has been running.** Same film,
+same 1920x800, same 11.9 Mbps stream:
+
+| shell uptime | flutter-pi CPU | RSS |
+|---|---|---|
+| ~45 min, two films in | **85-88%** of a core | ~390 MB |
+| freshly restarted | **43%** of a core | ~295 MB |
+
+and on the fresh shell the cost climbs visibly while a single film plays:
+43% -> 53% in three minutes, roughly 2-3 points a minute, which reaches
+saturation at about the half hour the user describes. At 85% of a core there
+is no headroom left, so a frame lands late now and then - seen, but never
+counted as a drop.
+
+**Crucially it is not a leak in the usual sense**: file descriptors are
+pinned at 124, fences at 57, RSS flat, across the same window the CPU rises.
+So the next session looks at what else grows - EGLImage/texture churn in the
+compositor, V4L2 buffer recycling, GPU memory fragmentation - with the
+counters already in `frame.c` to catch a late switch to the copy path.
+
+Instruments that exist for this, all of them cheap to re-deploy:
+`/tmp/accum.sh` on the box (CPU, RSS, fds, fences every 30 s),
+`lib/core/frame_watch.dart` (Flutter's own frame timings behind
+`MIRA_FRAME_LOG`), and the `frame.c` counter patch. Measurements so far are
+in `/tmp/claude-*/pi-accum-session2.csv`.
+
 **Every box needs its own DeviceId.** The same rule that forces single-flight
 sign-in bites across machines too, and harder: `deviceId` was the constant
 `'mira-shell'`, so the Pi in the living room and the VM on the bench were one

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/widgets.dart';
 
 import 'core/device_identity.dart';
+import 'core/frame_watch.dart';
 import 'core/library_source.dart';
 import 'core/mira_app.dart';
 import 'core/mira_config.dart';
@@ -15,6 +16,8 @@ import 'player/player_factory.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   registerPlaybackBackend();
+  // Off unless MIRA_FRAME_LOG is set; see FrameWatch for why it exists.
+  FrameWatch.start();
 
   // With a server configured, use it. Without one, fall back to sample titles
   // so the shell still renders something diagnosable - first-run enrolment,

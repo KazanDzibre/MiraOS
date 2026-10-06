@@ -73,7 +73,27 @@ box and never transcoding again. 82% of the library is HEVC.
 - [ ] Re-measure after. The whole point is removing the server's work, so the
       proof is CPU on *both* ends.
 
-## 4. Unverified — claims that have never been exercised
+## 4. The hitch: playback degrades over a session (open, half-diagnosed)
+
+The live investigation, written up in CLAUDE.md under *Playback degrades over
+a session*. In short: nothing is dropped, nothing is copied, the decoder and
+the server are idle - but `flutter-pi`'s CPU climbs 2-3 points a minute while
+a film plays, from ~43% of a core to ~88%, and memory with it (295 -> 390 MB)
+while fds and fences stay flat.
+
+- [ ] Find what grows. Suspects, in order: EGLImage/texture churn per frame in
+      the compositor, V4L2 capture-buffer recycling, GPU memory fragmentation.
+- [ ] Watch the `frame.c` counters over a long session: if `copied` becomes
+      non-zero after twenty minutes, the V4L2 pool has exhausted and switched
+      to the copy path, and the fix is buffer counts rather than anything in
+      the renderer.
+- [ ] Deploy `MIRA_FRAME_LOG=1` during a real session to confirm the late
+      frames are late *presentations* rather than late decodes.
+- [ ] Remove the temporary `frame.c` counter patch from the box when done -
+      it writes a line a second to a 115200 baud console, which costs ~9 ms of
+      main-thread time each time.
+
+## 5. Unverified — claims that have never been exercised
 
 Honest list of things believed but not shown. Each one is a candidate for the
 next surprise.
@@ -91,7 +111,7 @@ next surprise.
 - [ ] NetBird from *outside* the LAN. Everything so far was same-subnet; the
       20 Mbps `defaultMaxStreamingBitrate` is the knob that matters remotely.
 
-## 5. Scrub preview (Netflix-style), waiting on the server
+## 6. Scrub preview (Netflix-style), waiting on the server
 
 Asked for on 2026-10-06 and deferred the same day: the client work is small,
 but it cannot show anything until Jellyfin has the images.
@@ -112,10 +132,29 @@ but it cannot show anything until Jellyfin has the images.
       timestamp" endpoint, and decoding a second stream on the Pi to make one
       is not on.
 
-## 6. Server side — optional, and measured
+## 7. Server side — done on 2026-10-07
 
-Nothing here is required. Jellyfin transcodes in software at 8x realtime
-(199 fps for a 24 fps film), so one TV uses a fraction of it.
+Applied to the real Jellyfin (192.168.100.34, Docker, linuxserver image). The
+old values are backed up in `/tmp/claude-*/encoding-backup.json`; the same
+three are in Dashboard -> Playback if they ever need putting back.
+
+| setting | was | now | why |
+|---|---|---|---|
+| Throttling | off | **on**, 180 s ahead | ffmpeg was using **5.45 of 6 cores** racing ~8x ahead of playback. After: 97% idle, load 13.5 -> 4.4. |
+| Segment deletion | off | **on**, keep 720 s | one film had left **5.8 GB in 6919 files**. |
+| Encoder preset | `veryfast` | **`medium`** | at the ~3-12 Mbps we now ask for, preset is where the picture is won. Measured after: still **222 fps, 9.3x realtime**. |
+
+**Hardware transcoding is impossible here and would not help anyway.** The
+Jellyfin box is a KVM guest whose only display adapter is QEMU's Bochs VGA.
+The Proxmox host (192.168.100.100) does have a **Radeon RX 5500**, but
+`/sys/kernel/iommu_groups/` is *empty* - IOMMU is off in the firmware, so
+passthrough needs a BIOS change and a full host reboot, and it would take the
+card away from the host's own console. And AMD's VCN encoder looks *worse*
+than `x264 medium` at the same bitrate, so it would trade picture quality for
+speed that is already surplus. If it is ever wanted, the sane route is running
+Jellyfin in a Proxmox **LXC** sharing `/dev/dri`, not passthrough to the VM.
+
+Still optional, and measured:
 
 - [ ] **Throttle transcodes + delete segments** (Dashboard → Playback). Both
       off today, which is why the server converted 37.8% of a 2-hour film while
@@ -127,7 +166,7 @@ Nothing here is required. Jellyfin transcodes in software at 8x realtime
       a fix.
 - [ ] Five stale `probe*` sessions in the dashboard from testing; they expire.
 
-## 7. Rough edges
+## 8. Rough edges
 
 Small, visible, none blocking.
 
@@ -145,7 +184,7 @@ Small, visible, none blocking.
 - [ ] 4K video mode-switching (UI stays 1080p). Less urgent now that everything
       arrives as 1080p H.264.
 
-## 8. Deferred on purpose — do not drift into these
+## 9. Deferred on purpose — do not drift into these
 
 - **YouTube** and any second *graphical* process. It forks the architecture
   (DRM master), which is why v1 stops where it does. See *The v2 fork*.
