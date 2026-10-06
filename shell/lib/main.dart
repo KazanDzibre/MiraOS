@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 
+import 'core/device_identity.dart';
 import 'core/library_source.dart';
 import 'core/mira_app.dart';
 import 'core/mira_config.dart';
@@ -20,12 +21,17 @@ Future<void> main() async {
   // which is what will normally write this config, is designed but not built.
   final MiraConfig? config = await MiraConfig.load();
 
+  // Distinct per box: Jellyfin replaces a device's session on every sign-in,
+  // so two boxes sharing one id revoke each other's tokens in a loop.
+  final DeviceIdentity device = await DeviceIdentity.resolve();
+
   final LibrarySource source;
   if (config != null && config.hasCredentials) {
     source = JellyfinLibrarySource(
       JellyfinClient(
         baseUrl: config.baseUrl,
-        deviceId: 'mira-shell',
+        deviceId: device.id,
+        deviceName: device.name,
       ),
       username: config.username,
       password: config.password,

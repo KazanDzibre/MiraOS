@@ -395,6 +395,21 @@ longer valid". `JellyfinLibrarySource._signIn` now shares one in-flight sign-in;
 refuses superseded tokens the way Jellyfin does. Demo-data tests cannot catch
 this class of bug - the demo source never signs in.
 
+**Every box needs its own DeviceId.** The same rule that forces single-flight
+sign-in bites across machines too, and harder: `deviceId` was the constant
+`'mira-shell'`, so the Pi in the living room and the VM on the bench were one
+device to Jellyfin. Each sign-in revoked the other's token, the loser's next
+request failed with "Your sign-in is no longer valid", it signed in again, and
+round it went - the VM's serial console filled with that error on every rail
+while the Pi was simply on (found 2026-10-06). `lib/core/device_identity.dart`
+now derives the id from `/var/lib/mira/device-id` if present, else the first
+real interface's MAC (tunnels and bridges excluded, or the id would depend on
+whether netbird came up first), else a random one, and writes it back when it
+can. It also names the box by `/proc/device-tree/model`, so Jellyfin's
+dashboard says *Mira (Raspberry Pi 4 Model B)* rather than a second *Mira*.
+Measured after: six sign-in failures in a boot became none, with both boxes
+running at once and the server listing them separately.
+
 **OK, Back and Menu must not repeat.** `SingleActivator` matches key-repeat
 events by default, and flutter-pi forwards the kernel's evdev repeats, so a Back
 press that lasted a moment too long popped the player *and* the film page -
