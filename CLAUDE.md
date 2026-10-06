@@ -94,13 +94,34 @@ on pie") after HEVC titles would not play at all on the box.
 
 Why, in order of how much each matters:
 
-- **HEVC hardware decode is unreachable in this image.** `v4l2codecs` registers
-  zero features because it enumerates `/sys/class/media` while the stateless
-  decoder's media nodes live under `/sys/bus/media`. So HEVC had no hardware
-  path and no viable software one - and HEVC is **82% of this library** (295 of
-  359 titles: 295 HEVC, 63 H.264, 1 AV1). Fixing that enumeration is the single
-  highest-value change available; `device_profile.dart` carries the commented
-  HEVC block so restoring direct play is a small edit in two files.
+- **HEVC hardware decode is unreachable in this image**, and the reason is a
+  *format* gap, not the enumeration bug an earlier draft of this file claimed.
+  Measured on the box 2026-10-06, with a cross-compiled `VIDIOC_ENUM_FMT`
+  probe and `GST_DEBUG=v4l2codecs*:7`:
+
+  - The plugin finds everything. `/dev/media0-3` exist, `/dev/video19` is
+    `rpi-hevc-dec`, and the log reads *Found decoder device rpi-hevc-dec-proc*
+    -> *Registering rpi-hevc-dec-proc as H265 Decoder*.
+  - Then: *Not registering H265 decoder since it produces no supported
+    format*, after *Probed caps: EMPTY*.
+  - Because the decoder's capture queue offers **only Broadcom's SAND column
+    formats**: `NC12` (Y/CbCr 4:2:0, 128-byte columns) and `NC30` (its 10-bit
+    twin). No plain NV12, in any configuration, before or after setting the
+    coded format. `/dev/video10`, the H.264 decoder, offers YU12/YV12/**NV12**
+    /NV21/RGBP/AB24 - which is exactly why H.264 works and HEVC does not.
+
+  So HEVC direct play needs the SAND layout turned into something the GPU can
+  import: teach GStreamer `NC12`/`NC30` (upstream has no mapping), or pass the
+  frames through the Pi's ISP (`bcm2835-isp`) as a second M2M stage, or drive
+  the decoder with the Pi's own ffmpeg fork, which already handles SAND. Each
+  is a project, and flutter-pi's appsink would still need to accept the result.
+  Budget accordingly; this is not a two-line edit, whatever the commented HEVC
+  block in `device_profile.dart` suggests.
+
+  It matters because **82% of this library is HEVC** (298 of 364), and
+  **70% is 10-bit Main 10** (256 titles) - so transcoding also costs the
+  10-bit depth, which is the visible difference against a player that direct
+  plays (noticed on *The Imitation Game*, HEVC Main 10 at 5.5 Mbps, 2026-10-06).
 - **AC3/DTS passthrough is declared nowhere, deliberately.** Nothing on the box
   can pass them through: vc4-hdmi via ALSA's `default` takes 48 kHz S16LE
   stereo and refuses the rest outright. The server's downmix is better than
