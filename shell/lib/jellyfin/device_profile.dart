@@ -80,6 +80,62 @@ abstract final class JellyfinDeviceProfile {
   /// 20 Mbps: transparent at 1080p H.264, and the transcode target too.
   static const int defaultMaxStreamingBitrate = 20000000;
 
+  /// What to ask the server to produce for one title, in bits per second.
+  ///
+  /// **Jellyfin treats `MaxStreamingBitrate` as a target, not a ceiling.** Sent
+  /// a flat 20 Mbps it encoded a 5.5 Mbps HEVC film at 19.6 Mbps - measured on
+  /// the real server, 2026-10-06, from the `VideoBitrate` in the generated HLS
+  /// playlist. Across this library that is wild: the median source is
+  /// **2.0 Mbps** and only 4% of titles pass 12 Mbps, so a fixed cap had the
+  /// server encoding about ten times the bits the original had, pushing them
+  /// over the network, and making the Pi decode them - for detail that was
+  /// never in the file. The Pi's CPU showed it: 8.3 Mbps cost 8% of a core,
+  /// 19.6 Mbps cost 16%.
+  ///
+  /// So the box asks for a bitrate derived from the source:
+  ///
+  ///  * **Transcoding** - [_transcodeFactor] times the source, because H.264
+  ///    needs roughly 1.5-2x what HEVC uses for the same picture, clamped to
+  ///    [_minTranscodeBitrate]..[_maxTranscodeBitrate]. A 5.5 Mbps HEVC film
+  ///    becomes ~8.8 Mbps of H.264 instead of 19.6.
+  ///  * **Direct play** - never below the file's own bitrate. This is the trap
+  ///    in the other direction: `MaxStreamingBitrate` also *gates* direct
+  ///    play, so a 25 Mbps H.264 file under a 12 Mbps cap would be transcoded -
+  ///    the box would re-encode a film it can already decode untouched.
+  ///  * **Unknown bitrate** - [defaultMaxStreamingBitrate], the old behaviour,
+  ///    since there is nothing to size against.
+  static int streamingBitrateFor({
+    int? sourceBitrate,
+    required bool directPlayLikely,
+  }) {
+    if (sourceBitrate == null || sourceBitrate <= 0) {
+      return defaultMaxStreamingBitrate;
+    }
+    if (directPlayLikely) {
+      // Headroom over the file itself: a muxed stream carries more than the
+      // video track's own bitrate, and a cap equal to it can tip the server
+      // into transcoding.
+      final int withHeadroom = (sourceBitrate * 1.5).round();
+      return withHeadroom < defaultMaxStreamingBitrate
+          ? defaultMaxStreamingBitrate
+          : withHeadroom;
+    }
+    final int target = (sourceBitrate * _transcodeFactor).round();
+    if (target < _minTranscodeBitrate) return _minTranscodeBitrate;
+    if (target > _maxTranscodeBitrate) return _maxTranscodeBitrate;
+    return target;
+  }
+
+  /// H.264 needs about this much more than HEVC for the same picture.
+  static const double _transcodeFactor = 1.6;
+
+  /// Below this, a busy 1080p scene starts to show it.
+  static const int _minTranscodeBitrate = 3000000;
+
+  /// Above this, 1080p H.264 is transparent and the extra bits only cost
+  /// server CPU, bandwidth and decode work on the Pi.
+  static const int _maxTranscodeBitrate = 12000000;
+
   static Map<String, Object?> build({
     int maxStreamingBitrate = defaultMaxStreamingBitrate,
   }) {

@@ -475,11 +475,18 @@ class JellyfinClient {
   Future<PlaybackPlan> planPlayback(
     MediaItem item, {
     Duration startAt = Duration.zero,
-    int maxStreamingBitrate = JellyfinDeviceProfile.defaultMaxStreamingBitrate,
+    int? maxStreamingBitrate,
     int? audioStreamIndex,
     int? subtitleStreamIndex,
   }) async {
     _requireSession();
+    // Sized from this title rather than fixed, or the server re-encodes every
+    // film up to the cap - see JellyfinDeviceProfile.streamingBitrateFor.
+    final int bitrate = maxStreamingBitrate ??
+        JellyfinDeviceProfile.streamingBitrateFor(
+          sourceBitrate: item.videoBitrate,
+          directPlayLikely: item.likelyDirectPlay,
+        );
     final bool remux = audioStreamIndex != null || subtitleStreamIndex != null;
     final Object? payload = await _send(
       'POST',
@@ -490,10 +497,9 @@ class JellyfinClient {
           'subtitleStreamIndex': '$subtitleStreamIndex',
       }),
       body: <String, Object?>{
-        'DeviceProfile':
-            JellyfinDeviceProfile.build(maxStreamingBitrate: maxStreamingBitrate),
+        'DeviceProfile': JellyfinDeviceProfile.build(maxStreamingBitrate: bitrate),
         'StartTimeTicks': ticksFromDuration(startAt),
-        'MaxStreamingBitrate': maxStreamingBitrate,
+        'MaxStreamingBitrate': bitrate,
         'AutoOpenLiveStream': true,
         if (item.mediaSourceId != null) 'MediaSourceId': item.mediaSourceId,
         if (audioStreamIndex != null) 'AudioStreamIndex': audioStreamIndex,

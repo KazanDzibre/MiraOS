@@ -73,6 +73,7 @@ class MediaItem {
     this.officialRating,
     this.genres = const <String>[],
     this.videoCodec,
+    this.videoBitrate,
     this.width,
     this.height,
     this.mediaSourceId,
@@ -147,6 +148,11 @@ class MediaItem {
   final List<String> genres;
 
   final String? videoCodec;
+
+  /// The source video stream's bitrate in bits per second, when the server
+  /// reported one. What the box asks the server to transcode *to* is derived
+  /// from this - see [JellyfinDeviceProfile.streamingBitrateFor].
+  final int? videoBitrate;
   final int? width;
   final int? height;
 
@@ -195,6 +201,7 @@ class MediaItem {
     String? codec;
     int? width;
     int? height;
+    int? videoBitrate;
     final List<MediaTrack> tracks = <MediaTrack>[];
     final Object? streams = json['MediaStreams'];
     if (streams is List) {
@@ -205,6 +212,7 @@ class MediaItem {
           codec = v['Codec'] as String?;
           width = v['Width'] as int?;
           height = v['Height'] as int?;
+          videoBitrate = (v['BitRate'] as num?)?.toInt();
         }
         final MediaTrack? track = MediaTrack.fromJson(v);
         if (track != null) tracks.add(track);
@@ -239,6 +247,7 @@ class MediaItem {
           .whereType<String>()
           .toList(growable: false),
       videoCodec: codec,
+      videoBitrate: videoBitrate,
       width: width,
       height: height,
       mediaSourceId: sourceId,

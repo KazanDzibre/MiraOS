@@ -148,10 +148,23 @@ fast it produces HLS segments), so one TV needs about a fifth of what it has.
 hard but needs a look at the server's `/dev/dri`, and is an optimisation rather
 than a fix.
 
-One thing *was* wrong and is fixed: `MaxStreamingBitrate` was 120 Mbps, and
-since it is also the transcode target the server was aiming at 119 Mbps of
-H.264 for a 1080p film. It is 20 Mbps now, defined once in
-`JellyfinDeviceProfile.defaultMaxStreamingBitrate`.
+**The transcode bitrate is sized per title, not fixed** (2026-10-06).
+`MaxStreamingBitrate` is a *target* to Jellyfin, not a ceiling: a flat cap had
+it encoding *The Imitation Game* - 5.5 Mbps of HEVC - at **19.6 Mbps** of
+H.264, measured from the `VideoBitrate` in the generated playlist. Across this
+library that is wild, because the **median source is 2.0 Mbps** and only 4% of
+titles pass 12 Mbps; the Pi paid for it too, 16% of a core against 8% for an
+8.3 Mbps stream. `JellyfinDeviceProfile.streamingBitrateFor` now asks for
+**1.6x the source** (H.264 needs about that much more than HEVC), clamped to
+3-12 Mbps, and the same film came back at **8.4 Mbps** from the real server.
+
+The opposite mistake is the one to watch: `MaxStreamingBitrate` also *gates*
+direct play, so a cap below a file's own bitrate makes the server re-encode
+something the box can already decode. Direct-play candidates are therefore
+never capped below the file itself. `test/streaming_bitrate_test.dart` pins
+both directions.
+
+(The first version of this was worse still: 120 Mbps, aiming at 119.)
 
 ---
 
