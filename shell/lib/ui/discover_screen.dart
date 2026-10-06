@@ -271,7 +271,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
               ],
             ),
           ),
-          if (current != null && _error == null)
+          // Not over the genre grid: nothing focusable there is a title, so
+          // the bar would be naming whatever was focused before the switch.
+          if (current != null && _error == null && !_showingGenres)
             Positioned(
               left: 0,
               right: 0,
@@ -340,6 +342,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     );
   }
 
+  bool get _showingGenres =>
+      _mode == _Mode.genres && widget.genre == null && widget.person == null;
+
   Widget _genreGrid() {
     final List<DiscoverGenre>? genres = _genres;
     if (genres == null) return const SizedBox.shrink();
@@ -392,9 +397,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         ),
       );
     }
-    if (_mode == _Mode.genres && widget.genre == null && widget.person == null) {
-      return _genreGrid();
-    }
+    if (_showingGenres) return _genreGrid();
     if (!_loaded) return const SizedBox.shrink();
     if (_titles.isEmpty) {
       return Align(

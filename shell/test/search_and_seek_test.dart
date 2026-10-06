@@ -97,8 +97,9 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.text('Low Tide'), findsOneWidget,
           reason: 'a film matching "ti" should be found by the server, not by the visible page');
-
-      await tester.pumpWidget(const SizedBox.shrink());
+      await expectLater(
+          find.byType(LibrarySearchScreen), matchesGoldenFile('goldens/library_search.png'));
+      await _settleTimers(tester);
     });
 
     testWidgets('says so when nothing matches', (WidgetTester tester) async {
@@ -146,7 +147,9 @@ void main() {
 
       expect(find.byType(DiscoverGenreTile), findsWidgets);
       expect(find.text('Science Fiction'), findsOneWidget);
-      await tester.pumpWidget(const SizedBox.shrink());
+      await expectLater(
+          find.byType(DiscoverScreen), matchesGoldenFile('goldens/discover_genres.png'));
+      await _settleTimers(tester);
     });
 
     testWidgets('search offers the people it matched, not just titles',
@@ -185,6 +188,8 @@ void main() {
       expect(find.textContaining('Known for'), findsOneWidget);
       expect(find.textContaining('Director'), findsOneWidget,
           reason: 'the grid mixes acting and directing, so the bar must say which');
+      await expectLater(
+          find.byType(DiscoverScreen), matchesGoldenFile('goldens/discover_person.png'));
       await _settleTimers(tester);
     });
   });
