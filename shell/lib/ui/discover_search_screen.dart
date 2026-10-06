@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../core/tokens.dart';
@@ -8,10 +7,11 @@ import '../input/focus_debug.dart';
 import '../input/mira_focusable.dart';
 import '../overseerr/discover_source.dart';
 import '../overseerr/overseerr_client.dart';
-import 'discover_screen.dart' show DiscoverTile;
+import 'discover_screen.dart' show DiscoverScreen, DiscoverTile;
 import 'discover_title_screen.dart';
 import 'widgets/chrome.dart';
 import 'widgets/grid_focus.dart';
+import 'widgets/search_keyboard.dart';
 import 'widgets/poster.dart';
 
 /// Search Seerr for a specific title, with an on-screen keyboard.
@@ -39,12 +39,9 @@ class _DiscoverSearchScreenState extends State<DiscoverSearchScreen> {
   static const int _columns = 4;
   static const double _gap = 28;
 
-  /// Characters a physical keyboard may type. Space is deliberately absent:
-  /// it is OK on the bench keyboard, and the on-screen Space key covers it.
-  static final RegExp _typeable = RegExp(r"[A-Za-z0-9'\-:&.,!?]");
-
   String _query = '';
   List<DiscoverTitle> _results = const <DiscoverTitle>[];
+  List<DiscoverPerson> _people = const <DiscoverPerson>[];
   bool _searching = false;
   bool _searched = false;
   String? _error;
@@ -95,6 +92,7 @@ class _DiscoverSearchScreenState extends State<DiscoverSearchScreen> {
       _generation++;
       setState(() {
         _results = const <DiscoverTitle>[];
+        _people = const <DiscoverPerson>[];
         _searching = false;
         _searched = false;
         _error = null;
@@ -111,10 +109,14 @@ class _DiscoverSearchScreenState extends State<DiscoverSearchScreen> {
       _error = null;
     });
     try {
-      final DiscoverPage page = await widget.source.search(q);
+      // One request, both halves: Seerr returns films, series and people
+      // together and charges the same round trip either way.
+      final ({DiscoverPage titles, List<DiscoverPerson> people}) found =
+          await widget.source.searchAll(q);
       if (!mounted || generation != _generation) return;
       setState(() {
-        _results = page.results;
+        _results = found.titles.results;
+        _people = found.people;
         _searching = false;
         _searched = true;
       });
@@ -127,18 +129,15 @@ class _DiscoverSearchScreenState extends State<DiscoverSearchScreen> {
     }
   }
 
-  KeyEventResult _onKey(FocusNode _, KeyEvent event) {
-    if (event is KeyUpEvent) return KeyEventResult.ignored;
-    if (event.logicalKey == LogicalKeyboardKey.backspace) {
-      _backspace();
-      return KeyEventResult.handled;
-    }
-    final String? ch = event.character;
-    if (ch != null && ch.length == 1 && _typeable.hasMatch(ch)) {
-      _type(ch.toLowerCase());
-      return KeyEventResult.handled;
-    }
-    return KeyEventResult.ignored;
+  void _openPerson(DiscoverPerson person) {
+    Navigator.of(context).push(PageRouteBuilder<void>(
+      transitionDuration: MiraMotion.screen,
+      reverseTransitionDuration: MiraMotion.screen,
+      pageBuilder: (BuildContext c, Animation<double> a, Animation<double> b) =>
+          DiscoverScreen(source: widget.source, person: person),
+      transitionsBuilder: (BuildContext c, Animation<double> a, Animation<double> b, Widget child) =>
+          FadeTransition(opacity: a, child: child),
+    ));
   }
 
   void _open(DiscoverTitle title) {
@@ -167,10 +166,9 @@ class _DiscoverSearchScreenState extends State<DiscoverSearchScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Focus(
-      canRequestFocus: false,
-      skipTraversal: true,
-      onKeyEvent: _onKey,
+    return MiraTypeAhead(
+      onType: _type,
+      onDelete: _backspace,
       child: MiraBackdrop(
         tint: const Color(0xFF2A4A5E),
         horizontalScrim: false,
@@ -183,10 +181,10 @@ class _DiscoverSearchScreenState extends State<DiscoverSearchScreen> {
               const SizedBox(height: 28),
               const Text('SEARCH SEERR', style: MiraType.sectionLabel),
               const SizedBox(height: 12),
-              _QueryField(query: _query),
+              MiraQueryField(query: _query),
               const SizedBox(height: 12),
               Text(
-                'OK types the focused key   ·   BACK returns to Discover',
+                'OK types the focused key   ·   people and titles both match   ·   BACK returns to Discover',
                 style: MiraType.meta.copyWith(fontSize: 17, color: MiraColors.textTertiary),
               ),
               const SizedBox(height: 32),
@@ -194,7 +192,7 @@ class _DiscoverSearchScreenState extends State<DiscoverSearchScreen> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    _Keyboard(onType: _type, onDelete: _backspace, onClear: _clear),
+                    MiraKeyboard(onType: _type, onDelete: _backspace, onClear: _clear),
                     const SizedBox(width: 64),
                     Expanded(child: _resultsArea()),
                   ],
@@ -217,9 +215,27 @@ class _DiscoverSearchScreenState extends State<DiscoverSearchScreen> {
       return _message('Type at least two letters. Results appear as you type.');
     }
     if (_error != null) return _message(_error!);
-    if (_results.isEmpty) {
+    if (_results.isEmpty && _people.isEmpty) {
       return _message(_searching || !_searched ? 'Searching…' : 'Nothing on Seerr matches "${_query.trim()}".');
     }
+    if (_people.isEmpty) return _titleGrid();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        const Text('PEOPLE', style: MiraType.sectionLabel),
+        const SizedBox(height: 12),
+        _PeopleRow(people: _people, onSelect: _openPerson),
+        const SizedBox(height: 26),
+        if (_results.isNotEmpty) ...<Widget>[
+          const Text('TITLES', style: MiraType.sectionLabel),
+          const SizedBox(height: 12),
+          Expanded(child: _titleGrid()),
+        ],
+      ],
+    );
+  }
+
+  Widget _titleGrid() {
     return LayoutBuilder(builder: (BuildContext context, BoxConstraints c) {
       const double spacing = 24;
       final double width = (c.maxWidth - _ringRoom * 2 - _gap * (_columns - 1)) / _columns;
@@ -256,133 +272,65 @@ class _DiscoverSearchScreenState extends State<DiscoverSearchScreen> {
   }
 }
 
-/// The query as typed, large enough to read from the couch, with a caret.
-class _QueryField extends StatelessWidget {
-  const _QueryField({required this.query});
+/// The people a query matched, as a scrolling row of cards.
+///
+/// Above the titles rather than mixed in with them: a person is a different
+/// kind of answer - OK on one opens everything they made, not a request.
+class _PeopleRow extends StatelessWidget {
+  const _PeopleRow({required this.people, required this.onSelect});
 
-  final String query;
+  static const double height = 104;
+
+  final List<DiscoverPerson> people;
+  final ValueChanged<DiscoverPerson> onSelect;
 
   @override
   Widget build(BuildContext context) {
-    final bool empty = query.isEmpty;
-    return Container(
-      height: 84,
-      alignment: Alignment.centerLeft,
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: MiraColors.outline, width: 2)),
-      ),
-      child: Row(
-        children: <Widget>[
-          Flexible(
-            child: Text(
-              empty ? 'Type a title' : query,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: MiraType.screenTitle.copyWith(
-                fontSize: 48,
-                color: empty ? MiraColors.textFaint : MiraColors.textPrimary,
+    return SizedBox(
+      height: height,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+        itemCount: people.length,
+        separatorBuilder: (BuildContext context, int i) => const SizedBox(width: 16),
+        itemBuilder: (BuildContext context, int i) {
+          final DiscoverPerson person = people[i];
+          return MiraFocusable(
+            onSelect: () => onSelect(person),
+            debugLabel: 'person:${person.name}',
+            revealMargin: const EdgeInsets.symmetric(horizontal: 40),
+            builder: (BuildContext context, bool focused) => Container(
+              width: 320,
+              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+              decoration: BoxDecoration(
+                color: MiraColors.textPrimary.withValues(alpha: focused ? 0.09 : 0.05),
+                borderRadius: MiraMetrics.borderRadius,
+                border: focused ? null : Border.all(color: MiraColors.surfaceBorder),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    person.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: MiraType.tileTitle.copyWith(fontSize: 26),
+                  ),
+                  if (person.knownForLabel.isNotEmpty) ...<Widget>[
+                    const SizedBox(height: 6),
+                    Text(
+                      person.knownForLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: MiraType.meta.copyWith(fontSize: 17, color: MiraColors.textTertiary),
+                    ),
+                  ],
+                ],
               ),
             ),
-          ),
-          if (!empty) ...<Widget>[
-            const SizedBox(width: 6),
-            Container(width: 4, height: 52, color: MiraColors.textPrimary),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-/// a-z and 0-9 in remote-sized keys, then Space, Delete and Clear.
-class _Keyboard extends StatelessWidget {
-  const _Keyboard({required this.onType, required this.onDelete, required this.onClear});
-
-  static const int columns = 6;
-  static const String _characters = 'abcdefghijklmnopqrstuvwxyz1234567890';
-
-  final ValueChanged<String> onType;
-  final VoidCallback onDelete;
-  final VoidCallback onClear;
-
-  @override
-  Widget build(BuildContext context) {
-    final List<Widget> rows = <Widget>[];
-    for (int start = 0; start < _characters.length; start += columns) {
-      final String row = _characters.substring(start, (start + columns).clamp(0, _characters.length));
-      rows.add(Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          for (int i = 0; i < row.length; i++) ...<Widget>[
-            if (i > 0) const SizedBox(width: _Key.gap),
-            _Key(
-              label: row[i].toUpperCase(),
-              autofocus: start == 0 && i == 0,
-              onSelect: () => onType(row[i]),
-            ),
-          ],
-        ],
-      ));
-    }
-    rows.add(Row(
-      mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
-        _Key(label: 'Space', span: 2, onSelect: () => onType(' ')),
-        const SizedBox(width: _Key.gap),
-        _Key(label: 'Delete', span: 2, onSelect: onDelete),
-        const SizedBox(width: _Key.gap),
-        _Key(label: 'Clear', span: 2, onSelect: onClear),
-      ],
-    ));
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        for (int i = 0; i < rows.length; i++) ...<Widget>[
-          if (i > 0) const SizedBox(height: _Key.gap),
-          rows[i],
-        ],
-      ],
-    );
-  }
-}
-
-class _Key extends StatelessWidget {
-  const _Key({required this.label, required this.onSelect, this.span = 1, this.autofocus = false});
-
-  /// Never smaller than a control: the remote is imprecise and so is the
-  /// gyro pointer.
-  static const double size = MiraMetrics.minControl;
-  static const double gap = 10;
-
-  final String label;
-  final VoidCallback onSelect;
-  final int span;
-  final bool autofocus;
-
-  @override
-  Widget build(BuildContext context) {
-    return MiraFocusable(
-      onSelect: onSelect,
-      autofocus: autofocus,
-      debugLabel: 'key:$label',
-      builder: (BuildContext context, bool focused) => Container(
-        width: size * span + gap * (span - 1),
-        height: size,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: focused ? MiraColors.textPrimary : MiraColors.surface,
-          borderRadius: MiraMetrics.borderRadius,
-          border: Border.all(color: MiraColors.surfaceBorder),
-        ),
-        child: Text(
-          label,
-          style: MiraType.control.copyWith(
-            fontSize: span == 1 ? 24 : 19,
-            color: focused ? MiraColors.background : MiraColors.textPrimary,
-          ),
-        ),
+          );
+        },
       ),
     );
   }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -43,6 +44,22 @@ class PlayerScreen extends StatefulWidget {
   final MediaItem item;
   final bool fromStart;
 
+  /// How fast a held arrow travels after [held] of holding.
+  ///
+  /// Starts at a minute of film per second and doubles every 0.8 s, capped at
+  /// fifteen minutes a second - which crosses a two-hour film in about eight
+  /// seconds of holding, and takes roughly three seconds to get there. The
+  /// ramp is deliberately not instant: the first second has to stay slow
+  /// enough to land on a scene you half-remember.
+  @visibleForTesting
+  static double rateFor(Duration held) {
+    const double start = 60;
+    const double cap = 900;
+    final double rate = start * math.pow(2, held.inMilliseconds / 800).toDouble();
+    return rate > cap ? cap : rate;
+  }
+
+
   /// Null plays with the tracks saved for the film - Resume on Home goes
   /// straight here, without the film page that would otherwise load them.
   final TrackChoice? choice;
@@ -80,6 +97,20 @@ class _PlayerScreenState extends State<PlayerScreen> {
   Duration? _pendingSeek;
   Timer? _seekTimer;
 
+  /// When the current hold began, which direction it is going, and when the
+  /// last repeat arrived. Null when nothing is held.
+  DateTime? _holdStart;
+  DateTime? _lastStep;
+  int _holdDirection = 0;
+
+  /// How fast the hold is currently travelling, in seconds of film per second,
+  /// for the readout. Zero when not accelerating.
+  double _seekRate = 0;
+
+  /// Ends a hold when the repeats stop. Key-up does this too, but a dropped
+  /// key-up would otherwise leave the film accelerating forever.
+  Timer? _holdTimer;
+
   final FocusNode _scrubNode = FocusNode(debugLabel: 'player:scrub');
   final FocusNode _wakeNode = FocusNode(debugLabel: 'player:wake');
   final FocusNode _playNode = FocusNode(debugLabel: 'player:play');
@@ -96,6 +127,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _hideTimer?.cancel();
     _reportTimer?.cancel();
     _seekTimer?.cancel();
+    _holdTimer?.cancel();
     _player.status.removeListener(_onStatus);
     if (!_stopped) {
       // Popped from outside (the app's Back, say): still tell the server where
@@ -195,12 +227,42 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }
   }
 
+  void _endHold() {
+    _holdTimer?.cancel();
+    _holdTimer = null;
+    _holdStart = null;
+    _lastStep = null;
+    _holdDirection = 0;
+    if (_seekRate != 0 && mounted) setState(() => _seekRate = 0);
+  }
+
   void _nudge(int direction, {required bool repeat}) {
     final PlaybackStatus s = _player.status.value;
     if (s.duration <= Duration.zero) return;
-    // Held down, the step grows: tapping is for "what did she say", holding is
-    // for getting past the credits.
-    final Duration step = repeat ? const Duration(seconds: 30) : const Duration(seconds: 10);
+
+    // Tapping is for "what did she say"; holding is for getting past the
+    // credits, and the longer it is held the faster it goes.
+    final DateTime now = miraNow();
+    final Duration step;
+    if (!repeat || _holdStart == null || _holdDirection != direction) {
+      _holdStart = repeat ? now : null;
+      _holdDirection = direction;
+      if (_seekRate != 0) _seekRate = 0;
+      step = const Duration(seconds: 10);
+    } else {
+      final double rate = PlayerScreen.rateFor(now.difference(_holdStart!));
+      // Advance by however long this repeat actually took, so the speed on
+      // screen is the speed in the hand whatever rate the kernel repeats at -
+      // flutter-pi forwards evdev's, which is not ours to choose.
+      final int sinceMs =
+          now.difference(_lastStep ?? now).inMilliseconds.clamp(16, 120);
+      _seekRate = rate;
+      step = Duration(milliseconds: (rate * sinceMs).round());
+    }
+    _lastStep = now;
+    _holdTimer?.cancel();
+    _holdTimer = Timer(const Duration(milliseconds: 300), _endHold);
+
     Duration target = (_pendingSeek ?? s.position) + step * direction;
     if (target < Duration.zero) target = Duration.zero;
     if (target > s.duration) target = s.duration;
@@ -209,6 +271,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _seekTimer = Timer(_seekSettle, () async {
       final Duration? to = _pendingSeek;
       if (to == null) return;
+      _endHold();
       await _player.seek(to);
       if (mounted) setState(() => _pendingSeek = null);
     });
@@ -301,7 +364,14 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }
 
   KeyEventResult _onScrubKey(KeyEvent event) {
-    if (event is KeyUpEvent) return KeyEventResult.ignored;
+    if (event is KeyUpEvent) {
+      // Letting go ends the acceleration, so the next press starts slow again.
+      if (event.logicalKey == LogicalKeyboardKey.arrowLeft ||
+          event.logicalKey == LogicalKeyboardKey.arrowRight) {
+        _endHold();
+      }
+      return KeyEventResult.ignored;
+    }
     final bool repeat = event is KeyRepeatEvent;
     if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
       _nudge(-1, repeat: repeat);
@@ -541,6 +611,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   focusNode: _scrubNode,
                   status: s,
                   pendingSeek: _pendingSeek,
+                  seekRate: _seekRate,
                   onKey: _onScrubKey,
                   onSelect: _togglePlay,
                 ),
@@ -587,6 +658,7 @@ class _ScrubBar extends StatelessWidget {
     required this.focusNode,
     required this.status,
     required this.pendingSeek,
+    required this.seekRate,
     required this.onKey,
     required this.onSelect,
   });
@@ -597,6 +669,11 @@ class _ScrubBar extends StatelessWidget {
   final FocusNode focusNode;
   final PlaybackStatus status;
   final Duration? pendingSeek;
+
+  /// Seconds of film per second while an arrow is held, 0 otherwise. Shown as
+  /// a multiplier, so it is obvious the hold is doing something and roughly
+  /// how fast - otherwise a long press just looks like the film jumping.
+  final double seekRate;
   final KeyEventResult Function(KeyEvent event) onKey;
   final VoidCallback onSelect;
 
@@ -646,6 +723,17 @@ class _ScrubBar extends StatelessWidget {
                           width: played,
                           decoration: const BoxDecoration(color: MiraColors.textPrimary, borderRadius: MiraMetrics.borderRadius),
                         ),
+                        // Over the track, not beside it: a reserved slot would
+                        // shorten the bar even when nothing is held.
+                        if (seekRate > 0)
+                          Positioned(
+                            right: 0,
+                            bottom: _track + 12,
+                            child: Text(
+                              '\u00bb \u00d7${seekRate.round()}',
+                              style: MiraType.status.copyWith(color: MiraColors.accent),
+                            ),
+                          ),
                         Positioned(
                           left: played - _thumb / 2,
                           child: AnimatedContainer(

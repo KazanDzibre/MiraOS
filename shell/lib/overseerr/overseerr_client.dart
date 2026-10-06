@@ -145,6 +145,54 @@ class DiscoverPage {
   bool get hasMore => page < totalPages;
 }
 
+/// One of TMDB's film genres, as Seerr lists them.
+///
+/// The id is what `/discover/movies?genre=` takes; the name is what the screen
+/// shows. Both come from the server rather than a hard-coded table, because
+/// TMDB's list is not ours to guess at.
+class DiscoverGenre {
+  const DiscoverGenre({required this.id, required this.name});
+
+  final int id;
+  final String name;
+}
+
+/// A person Seerr knows: an actor, a director, anyone in a film's credits.
+class DiscoverPerson {
+  const DiscoverPerson({
+    required this.id,
+    required this.name,
+    this.knownFor = const <String>[],
+    this.profilePath,
+  });
+
+  final int id;
+  final String name;
+
+  /// The titles Seerr lists this person as best known for.
+  ///
+  /// Shown as the subtitle, because a search for "nolan" returns sixteen
+  /// people and the only way to tell which one directed Inception is to see
+  /// Inception next to the name. Seerr sends no `knownForDepartment` at all
+  /// (checked against 3.4.1), so there is no job title to show instead.
+  final List<String> knownFor;
+  final String? profilePath;
+
+  /// "Inception · Interstellar", or empty when Seerr listed nothing.
+  String get knownForLabel => knownFor.take(2).join('  ·  ');
+}
+
+/// What a person did on a title, so one grid can mix acting and directing
+/// credits and still say which is which.
+class PersonCredit {
+  const PersonCredit({required this.title, required this.role});
+
+  final DiscoverTitle title;
+
+  /// "Director", "Writer", or the character played.
+  final String role;
+}
+
 /// Seerr's REST API (Overseerr-compatible), authenticated with an API key.
 ///
 /// Depends only on dart:io, like the Jellyfin client, so a probe can exercise
@@ -261,6 +309,107 @@ class OverseerrClient {
     };
     final Object? json = await _send('GET', path, query: <String, String>{'page': '$page'});
     return _page(json, _titles(json, mediaType: type));
+  }
+
+  /// TMDB's film genres. Ordered as Seerr returns them, which is TMDB's own
+  /// order - roughly by how much gets made.
+  Future<List<DiscoverGenre>> genres() async {
+    final Object? json = await _send('GET', '/genres/movie');
+    if (json is! List<Object?>) return const <DiscoverGenre>[];
+    return json
+        .whereType<Map<Object?, Object?>>()
+        .map((Map<Object?, Object?> g) => g.cast<String, Object?>())
+        .where((Map<String, Object?> g) => g['id'] is num && g['name'] is String)
+        .map((Map<String, Object?> g) =>
+            DiscoverGenre(id: (g['id']! as num).toInt(), name: g['name']! as String))
+        .toList(growable: false);
+  }
+
+  /// Films in one genre, newest and most popular first - Seerr's own ordering.
+  Future<DiscoverPage> discoverGenre(int genreId, {int page = 1}) async {
+    final Object? json = await _send('GET', '/discover/movies',
+        query: <String, String>{'genre': '$genreId', 'page': '$page'});
+    return _page(json, _titles(json, mediaType: 'movie'));
+  }
+
+  /// People matching [query]. Seerr's search returns films, series and people
+  /// in one response; [search] drops the people and this keeps only them, so
+  /// one request can feed both halves of the search screen.
+  List<DiscoverPerson> peopleFrom(Object? json) {
+    final List<Object?> results =
+        ((json as Map<Object?, Object?>?)?['results'] as List<Object?>?) ?? const <Object?>[];
+    return results
+        .whereType<Map<Object?, Object?>>()
+        .map((Map<Object?, Object?> r) => r.cast<String, Object?>())
+        .where((Map<String, Object?> r) => r['mediaType'] == 'person' && r['id'] is num)
+        .map((Map<String, Object?> r) => DiscoverPerson(
+              id: (r['id']! as num).toInt(),
+              name: (r['name'] as String?) ?? 'Unknown',
+              knownFor: ((r['knownFor'] as List<Object?>?) ?? const <Object?>[])
+                  .whereType<Map<Object?, Object?>>()
+                  .map((Map<Object?, Object?> k) =>
+                      (k['title'] ?? k['name']) as String?)
+                  .whereType<String>()
+                  .toList(growable: false),
+              profilePath: r['profilePath'] as String?,
+            ))
+        .toList(growable: false);
+  }
+
+  /// One search request, parsed both ways.
+  ///
+  /// Seerr charges the same round trip whether we want titles, people or both,
+  /// and the search screen wants both - so it asks once.
+  Future<({DiscoverPage titles, List<DiscoverPerson> people})> searchAll(String query,
+      {int page = 1}) async {
+    final Object? json = await _send('GET', '/search',
+        rawQuery: 'query=${strictEncode(query.trim())}&page=$page');
+    return (titles: _page(json, _titles(json)), people: peopleFrom(json));
+  }
+
+  /// Everything a person is credited on, acting and crew together.
+  ///
+  /// A director's name finds almost nothing under `cast`, and an actor's finds
+  /// almost nothing under `crew`, so a screen that showed only one would look
+  /// broken for half the people searched for. Credits are deduplicated by
+  /// title - Nolan both writes and directs - keeping the most specific role,
+  /// and ordered newest first.
+  Future<List<PersonCredit>> personCredits(int personId) async {
+    final Object? json = await _send('GET', '/person/$personId/combined_credits');
+    final Map<Object?, Object?> m = (json as Map<Object?, Object?>?) ?? const <Object?, Object?>{};
+
+    final Map<int, PersonCredit> byTitle = <int, PersonCredit>{};
+    void take(Object? list, String Function(Map<String, Object?>) role,
+        {bool Function(Map<String, Object?>)? skip}) {
+      if (list is! List<Object?>) return;
+      for (final Map<Object?, Object?> raw in list.whereType<Map<Object?, Object?>>()) {
+        final Map<String, Object?> r = raw.cast<String, Object?>();
+        if (r['id'] is! num) continue;
+        if (skip != null && skip(r)) continue;
+        final String? type = r['mediaType'] as String?;
+        if (type != null && type != 'movie' && type != 'tv') continue;
+        final DiscoverTitle t = DiscoverTitle.fromJson(r, mediaType: type ?? 'movie');
+        // Crew is taken first, so a director who also acts reads as director.
+        byTitle.putIfAbsent(t.tmdbId, () => PersonCredit(title: t, role: role(r)));
+      }
+    }
+
+    take(m['crew'], (Map<String, Object?> r) => (r['job'] as String?) ?? 'Crew');
+    take(m['cast'], (Map<String, Object?> r) {
+      final String? character = r['character'] as String?;
+      return character == null || character.isEmpty ? 'Actor' : character;
+    }, skip: (Map<String, Object?> r) {
+      // "Self", "Self - Guest": talk shows, award ceremonies and making-ofs,
+      // which is most of what a director's cast credits are. Nobody searching
+      // for Nolan wants Good Hang with Amy Poehler.
+      final String character = (r['character'] as String?) ?? '';
+      return character == 'Self' || character.startsWith('Self -');
+    });
+
+    final List<PersonCredit> credits = byTitle.values.toList()
+      ..sort((PersonCredit a, PersonCredit b) =>
+          (b.title.year ?? 0).compareTo(a.title.year ?? 0));
+    return credits;
   }
 
   /// Seerr rejects a query containing any reserved character with a 400 -

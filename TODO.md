@@ -91,7 +91,28 @@ next surprise.
 - [ ] NetBird from *outside* the LAN. Everything so far was same-subnet; the
       20 Mbps `defaultMaxStreamingBitrate` is the knob that matters remotely.
 
-## 5. Server side — optional, and measured
+## 5. Scrub preview (Netflix-style), waiting on the server
+
+Asked for on 2026-10-06 and deferred the same day: the client work is small,
+but it cannot show anything until Jellyfin has the images.
+
+- [ ] **Turn on trickplay image extraction.** Dashboard → Libraries → Movies →
+      *Enable trickplay image extraction*, then let the task run. Off on all
+      four libraries today (Movies, Shows, Anime, Collections); the server's
+      own defaults are already sensible - a 320 px tile every 10 s, 10x10 to a
+      sheet, BelowNormal priority on one thread. Expect hours of background CPU
+      for 359 titles, which is why it was not switched on without asking.
+- [ ] **Then the client half:** `MediaItem` carries no trickplay data yet;
+      Jellyfin exposes it through the `Trickplay` field on an item and serves
+      tiles at `/Videos/{id}/Trickplay/{width}/{index}.jpg`. The player would
+      show the tile nearest the pending seek above the scrub bar - which is
+      exactly where the new `» ×N` speed readout sits, so the two want
+      designing together.
+- [ ] There is no fallback worth building: Jellyfin has no "frame at this
+      timestamp" endpoint, and decoding a second stream on the Pi to make one
+      is not on.
+
+## 6. Server side — optional, and measured
 
 Nothing here is required. Jellyfin transcodes in software at 8x realtime
 (199 fps for a 24 fps film), so one TV uses a fraction of it.
@@ -106,7 +127,7 @@ Nothing here is required. Jellyfin transcodes in software at 8x realtime
       a fix.
 - [ ] Five stale `probe*` sessions in the dashboard from testing; they expire.
 
-## 6. Rough edges
+## 7. Rough edges
 
 Small, visible, none blocking.
 
@@ -124,7 +145,7 @@ Small, visible, none blocking.
 - [ ] 4K video mode-switching (UI stays 1080p). Less urgent now that everything
       arrives as 1080p H.264.
 
-## 7. Deferred on purpose — do not drift into these
+## 8. Deferred on purpose — do not drift into these
 
 - **YouTube** and any second *graphical* process. It forks the architecture
   (DRM master), which is why v1 stops where it does. See *The v2 fork*.

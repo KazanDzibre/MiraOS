@@ -13,6 +13,19 @@ abstract interface class DiscoverSource {
   /// Films and series whose title matches [query].
   Future<DiscoverPage> search(String query, {int page = 1});
 
+  /// Titles and people matching [query], from one request.
+  Future<({DiscoverPage titles, List<DiscoverPerson> people})> searchAll(String query,
+      {int page = 1});
+
+  /// The genres titles can be browsed by.
+  Future<List<DiscoverGenre>> genres();
+
+  /// One genre's films, paged.
+  Future<DiscoverPage> genreTitles(DiscoverGenre genre, {int page = 1});
+
+  /// Everything a person is credited on, newest first.
+  Future<List<PersonCredit>> personCredits(DiscoverPerson person);
+
   /// Current availability and request state for one title.
   Future<DiscoverTitle> details(DiscoverTitle title);
 
@@ -40,6 +53,22 @@ class OverseerrDiscoverSource implements DiscoverSource {
 
   @override
   Future<DiscoverPage> search(String query, {int page = 1}) => client.search(query, page: page);
+
+  @override
+  Future<({DiscoverPage titles, List<DiscoverPerson> people})> searchAll(String query,
+          {int page = 1}) =>
+      client.searchAll(query, page: page);
+
+  @override
+  Future<List<DiscoverGenre>> genres() => client.genres();
+
+  @override
+  Future<DiscoverPage> genreTitles(DiscoverGenre genre, {int page = 1}) =>
+      client.discoverGenre(genre.id, page: page);
+
+  @override
+  Future<List<PersonCredit>> personCredits(DiscoverPerson person) =>
+      client.personCredits(person.id);
 
   @override
   Future<DiscoverTitle> details(DiscoverTitle title) => client.details(title);
@@ -97,6 +126,20 @@ class DemoDiscoverSource implements DiscoverSource {
     DiscoverTitle(tmdbId: 12, mediaType: 'movie', title: 'Northwind', year: 2025),
   ];
 
+  static const List<DiscoverGenre> _genres = <DiscoverGenre>[
+    DiscoverGenre(id: 28, name: 'Action'),
+    DiscoverGenre(id: 18, name: 'Drama'),
+    DiscoverGenre(id: 878, name: 'Science Fiction'),
+    DiscoverGenre(id: 53, name: 'Thriller'),
+    DiscoverGenre(id: 35, name: 'Comedy'),
+    DiscoverGenre(id: 27, name: 'Horror'),
+  ];
+
+  static const List<DiscoverPerson> _people = <DiscoverPerson>[
+    DiscoverPerson(id: 1, name: 'Ada Vance', knownFor: <String>['Vantage', 'Marrow']),
+    DiscoverPerson(id: 2, name: 'Ivo Marek', knownFor: <String>['The Ninth Hour']),
+  ];
+
   static Future<T> _soon<T>(T value) =>
       Future<T>.delayed(const Duration(milliseconds: 120), () => value);
 
@@ -120,6 +163,39 @@ class DemoDiscoverSource implements DiscoverSource {
         _titles.where((DiscoverTitle t) => t.title.toLowerCase().contains(q)).toList();
     return _soon(DiscoverPage(matches, page: 1, totalPages: 1));
   }
+
+  @override
+  Future<({DiscoverPage titles, List<DiscoverPerson> people})> searchAll(String query,
+      {int page = 1}) async {
+    final String q = query.trim().toLowerCase();
+    return (
+      titles: await search(query, page: page),
+      people: _people
+          .where((DiscoverPerson p) => p.name.toLowerCase().contains(q))
+          .toList(growable: false),
+    );
+  }
+
+  @override
+  Future<List<DiscoverGenre>> genres() => _soon(_genres);
+
+  @override
+  Future<DiscoverPage> genreTitles(DiscoverGenre genre, {int page = 1}) {
+    final List<DiscoverTitle> matches = _titles
+        .where((DiscoverTitle t) => t.genres.contains(genre.name))
+        .toList(growable: false);
+    return _soon(DiscoverPage(
+      matches.isEmpty ? _titles.take(4).toList(growable: false) : matches,
+      page: 1,
+      totalPages: 1,
+    ));
+  }
+
+  @override
+  Future<List<PersonCredit>> personCredits(DiscoverPerson person) => _soon(<PersonCredit>[
+        for (int i = 0; i < _titles.length && i < 5; i++)
+          PersonCredit(title: _titles[i], role: i == 0 ? 'Director' : 'Actor'),
+      ]);
 
   @override
   Future<DiscoverTitle> details(DiscoverTitle title) =>

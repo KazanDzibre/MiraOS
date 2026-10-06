@@ -23,6 +23,12 @@ abstract interface class LibrarySource {
   Future<List<MediaItem>> movies({int startIndex = 0, int limit = 60, String? genre});
   Future<List<GenreCount>> genres();
 
+  /// Films whose title matches [query]. Empty query, empty result.
+  Future<List<MediaItem>> searchMovies(String query, {int limit = 60});
+
+  /// Series in one shows library whose title matches [query].
+  Future<List<MediaItem>> searchShows(LibraryView library, String query, {int limit = 60});
+
   /// The user's libraries, in their Jellyfin order. Each shows library gets a
   /// tab of its own, named as it is on the server.
   Future<List<LibraryView>> libraries();
@@ -335,6 +341,23 @@ class DemoLibrarySource implements LibrarySource {
   Future<List<MediaItem>> movies({int startIndex = 0, int limit = 60, String? genre}) =>
       _soon(_page(_filtered(genre), startIndex, limit));
 
+  @override
+  Future<List<MediaItem>> searchMovies(String query, {int limit = 60}) =>
+      _soon(_matching(_films, query, limit));
+
+  @override
+  Future<List<MediaItem>> searchShows(LibraryView library, String query, {int limit = 60}) =>
+      _soon(_matching(_seriesIn(library, null), query, limit));
+
+  static List<MediaItem> _matching(List<MediaItem> all, String query, int limit) {
+    final String q = query.trim().toLowerCase();
+    if (q.isEmpty) return const <MediaItem>[];
+    return all
+        .where((MediaItem m) => m.displayTitle.toLowerCase().contains(q))
+        .take(limit)
+        .toList(growable: false);
+  }
+
   static List<MediaItem> _page(List<MediaItem> all, int startIndex, int limit) {
     final int start = startIndex.clamp(0, all.length);
     final int end = (start + limit).clamp(0, all.length);
@@ -533,6 +556,20 @@ class JellyfinLibrarySource implements LibrarySource {
   Future<List<GenreCount>> genres() async {
     await _signIn();
     return client.movieGenres();
+  }
+
+  @override
+  Future<List<MediaItem>> searchMovies(String query, {int limit = 60}) async {
+    if (query.trim().isEmpty) return const <MediaItem>[];
+    await _signIn();
+    return client.searchItems(query, limit: limit);
+  }
+
+  @override
+  Future<List<MediaItem>> searchShows(LibraryView library, String query, {int limit = 60}) async {
+    if (query.trim().isEmpty) return const <MediaItem>[];
+    await _signIn();
+    return client.searchItems(query, limit: limit, type: 'Series', parentId: library.id);
   }
 
   @override

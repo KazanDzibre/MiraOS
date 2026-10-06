@@ -6,6 +6,7 @@ import '../input/focus_debug.dart';
 import '../input/mira_focusable.dart';
 import '../jellyfin/jellyfin_client.dart';
 import '../jellyfin/models.dart';
+import 'library_search_screen.dart';
 import 'widgets/chrome.dart';
 import 'widgets/focus_artwork.dart';
 import 'widgets/grid_focus.dart';
@@ -27,6 +28,7 @@ class Catalog {
     required this.count,
     required this.page,
     required this.genres,
+    required this.search,
   });
 
   factory Catalog.films(LibrarySource source) => Catalog(
@@ -38,6 +40,7 @@ class Catalog {
         page: (int start, int limit, String? genre) =>
             source.movies(startIndex: start, limit: limit, genre: genre),
         genres: source.genres,
+        search: (String query) => source.searchMovies(query),
       );
 
   /// One shows library, titled as it is on the server - "Shows", "Anime".
@@ -50,6 +53,7 @@ class Catalog {
         page: (int start, int limit, String? genre) =>
             source.shows(library, startIndex: start, limit: limit, genre: genre),
         genres: () => source.showGenres(library),
+        search: (String query) => source.searchShows(library, query),
       );
 
   /// The screen title, and the tab it lives under.
@@ -63,6 +67,9 @@ class Catalog {
   final Future<int> Function(String? genre) count;
   final Future<List<MediaItem>> Function(int startIndex, int limit, String? genre) page;
   final Future<List<GenreCount>> Function() genres;
+
+  /// Titles in this catalog matching a query, asked of the server.
+  final Future<List<MediaItem>> Function(String query) search;
 
   String countLabel(int n) => '$n ${n == 1 ? singular : plural}';
 }
@@ -190,6 +197,20 @@ class _FilmsScreenState extends State<FilmsScreen> {
     }
   }
 
+  void _openSearch() {
+    Navigator.of(context).push(PageRouteBuilder<void>(
+      transitionDuration: MiraMotion.screen,
+      reverseTransitionDuration: MiraMotion.screen,
+      pageBuilder: (BuildContext c, Animation<double> a, Animation<double> b) => LibrarySearchScreen(
+        source: widget.source,
+        catalog: _catalog,
+        onOpen: widget.onOpen,
+      ),
+      transitionsBuilder: (BuildContext c, Animation<double> a, Animation<double> b, Widget child) =>
+          FadeTransition(opacity: a, child: child),
+    ));
+  }
+
   void _openGenre(GenreCount genre) {
     Navigator.of(context).push(PageRouteBuilder<void>(
       transitionDuration: MiraMotion.screen,
@@ -279,6 +300,8 @@ class _FilmsScreenState extends State<FilmsScreen> {
             _Chip(label: 'All ${_catalog.plural}', active: _mode == _Mode.all, onSelect: () => _setMode(_Mode.all)),
             const SizedBox(width: 16),
             _Chip(label: 'Genres', active: _mode == _Mode.genres, onSelect: () => _setMode(_Mode.genres)),
+            const SizedBox(width: 16),
+            _Chip(label: 'Search', active: false, onSelect: _openSearch),
           ],
         ),
       ],

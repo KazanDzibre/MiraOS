@@ -220,6 +220,34 @@ class JellyfinClient {
 
   /// All films, a page at a time, optionally narrowed to one genre. With
   /// [type] `Series` and a [parentId], the shows of one library instead.
+  /// Titles matching [query], by name.
+  ///
+  /// Jellyfin's `SearchTerm` matches on more than the display name - original
+  /// titles and sort names included - which is what makes it worth asking the
+  /// server rather than filtering the page the grid happens to hold.
+  Future<List<MediaItem>> searchItems(
+    String query, {
+    int limit = 60,
+    String type = 'Movie',
+    String? parentId,
+  }) async {
+    _requireSession();
+    return _itemsFrom(await _send(
+      'GET',
+      _uri('/Users/$_userId/Items', <String, String>{
+        'IncludeItemTypes': type,
+        'Recursive': 'true',
+        if (parentId != null) 'ParentId': parentId,
+        'SearchTerm': query,
+        'SortBy': 'SortName',
+        'SortOrder': 'Ascending',
+        'Limit': '$limit',
+        'Fields': _fields,
+        'EnableImageTypes': 'Primary,Backdrop',
+      }),
+    ));
+  }
+
   Future<List<MediaItem>> movies({
     int startIndex = 0,
     int limit = 60,

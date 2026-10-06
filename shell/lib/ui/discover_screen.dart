@@ -15,15 +15,31 @@ import 'widgets/poster.dart';
 /// The Discover tab: what to request next, from Seerr.
 ///
 /// Follows design/Overseerr.dc.html with two deliberate departures. The list
+enum _Mode { lists, genres }
+
 /// chips sit on the left above the grid's first column, where Up from the grid
 /// lands - at the far right the directional policy skipped them, as it did on
 /// Films. And OK opens the title rather than requesting it: a request spends
 /// the household's disk and bandwidth, so it should never be one stray press.
 class DiscoverScreen extends StatefulWidget {
-  const DiscoverScreen({super.key, required this.source, this.onTab});
+  const DiscoverScreen({
+    super.key,
+    required this.source,
+    this.onTab,
+    this.genre,
+    this.person,
+  });
 
   final DiscoverSource source;
   final ValueChanged<String>? onTab;
+
+  /// Set when this screen shows one genre's films. Pushed, so Back returns to
+  /// the genre list through the normal navigator rule - the same shape Films
+  /// uses for its genres.
+  final DiscoverGenre? genre;
+
+  /// Set when this screen shows one person's credits.
+  final DiscoverPerson? person;
 
   @override
   State<DiscoverScreen> createState() => _DiscoverScreenState();
@@ -40,6 +56,12 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   };
 
   DiscoverList _list = DiscoverList.trending;
+  _Mode _mode = _Mode.lists;
+  List<DiscoverGenre>? _genres;
+
+  /// What the focused person did on each title, by title key - only ever set
+  /// on a person's screen.
+  final Map<String, String> _roles = <String, String>{};
   final List<DiscoverTitle> _titles = <DiscoverTitle>[];
   int _page = 0;
   int _totalPages = 1;
@@ -53,6 +75,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   int _generation = 0;
 
   final GridFocus _grid = GridFocus(columns: _columns, debugName: 'discover');
+  final GridFocus _genreFocus = GridFocus(columns: 4, debugName: 'discover-genre');
 
   double get _ringRoom => MiraFocusRing.reach + 2;
 
@@ -65,6 +88,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
   @override
   void dispose() {
+    _genreFocus.dispose();
     _grid.dispose();
     super.dispose();
   }
@@ -80,7 +104,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       _focused = 0;
     });
     try {
-      final DiscoverPage page = await widget.source.list(_list);
+      final DiscoverPage page = await _fetch(1);
       if (!mounted || generation != _generation) return;
       setState(() {
         _titles.addAll(page.results);
@@ -104,7 +128,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     _loadingMore = true;
     final int generation = _generation;
     try {
-      final DiscoverPage page = await widget.source.list(_list, page: _page + 1);
+      final DiscoverPage page = await _fetch(_page + 1);
       if (!mounted || generation != _generation) return;
       final Set<String> seen = _titles.map(_key).toSet();
       setState(() {
@@ -120,6 +144,57 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   }
 
   static String _key(DiscoverTitle t) => '${t.mediaType}:${t.tmdbId}';
+
+  /// Where this screen's titles come from: a list, a genre, or a person's
+  /// credits. Only the first two page - a person's credits arrive whole.
+  Future<DiscoverPage> _fetch(int page) async {
+    final DiscoverPerson? person = widget.person;
+    if (person != null) {
+      if (page > 1) return const DiscoverPage(<DiscoverTitle>[], page: 1, totalPages: 1);
+      final List<PersonCredit> credits = await widget.source.personCredits(person);
+      _roles
+        ..clear()
+        ..addEntries(credits.map((PersonCredit c) => MapEntry<String, String>(_key(c.title), c.role)));
+      return DiscoverPage(
+        credits.map((PersonCredit c) => c.title).toList(growable: false),
+        page: 1,
+        totalPages: 1,
+      );
+    }
+    final DiscoverGenre? genre = widget.genre;
+    if (genre != null) return widget.source.genreTitles(genre, page: page);
+    return widget.source.list(_list, page: page);
+  }
+
+  Future<void> _loadGenres() async {
+    if (_genres != null) return;
+    try {
+      final List<DiscoverGenre> genres = await widget.source.genres();
+      if (!mounted) return;
+      setState(() => _genres = genres);
+    } on OverseerrException catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.message);
+    }
+  }
+
+  void _setMode(_Mode mode) {
+    if (mode == _mode) return;
+    setState(() => _mode = mode);
+    if (mode == _Mode.genres) _loadGenres();
+  }
+
+  void _openGenre(DiscoverGenre genre) => _push(DiscoverScreen(source: widget.source, genre: genre));
+
+  void _push(Widget screen) {
+    Navigator.of(context).push(PageRouteBuilder<void>(
+      transitionDuration: MiraMotion.screen,
+      reverseTransitionDuration: MiraMotion.screen,
+      pageBuilder: (BuildContext c, Animation<double> a, Animation<double> b) => screen,
+      transitionsBuilder: (BuildContext c, Animation<double> a, Animation<double> b, Widget child) =>
+          FadeTransition(opacity: a, child: child),
+    ));
+  }
 
   void _setList(DiscoverList list) {
     if (list == _list) return;
@@ -175,7 +250,12 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
-                MiraTopBar(activeTab: 'Discover', onTab: widget.onTab, networkLabel: widget.source.label),
+                if (widget.genre == null && widget.person == null)
+                  MiraTopBar(activeTab: 'Discover', onTab: widget.onTab, networkLabel: widget.source.label)
+                else
+                  _BackCrumb(
+                    label: widget.person != null ? 'Discover · Search' : 'Discover · Genres',
+                  ),
                 const SizedBox(height: 36),
                 _header(),
                 const SizedBox(height: 24),
@@ -192,32 +272,109 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             ),
           ),
           if (current != null && _error == null)
-            Positioned(left: 0, right: 0, bottom: 0, child: _InfoBar(title: current)),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: _InfoBar(title: current, role: _roles[_key(current)]),
+            ),
         ],
       ),
     );
   }
 
   Widget _header() {
+    final DiscoverPerson? person = widget.person;
+    if (person != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const Text('SEERR · PERSON', style: MiraType.sectionLabel),
+          const SizedBox(height: 10),
+          Text(person.name, style: MiraType.screenTitle),
+          if (person.knownForLabel.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 8),
+            Text('Known for ${person.knownForLabel}',
+                style: MiraType.meta.copyWith(fontSize: 20, color: MiraColors.textTertiary)),
+          ],
+        ],
+      );
+    }
+    final DiscoverGenre? genre = widget.genre;
+    if (genre != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const Text('SEERR · GENRES', style: MiraType.sectionLabel),
+          const SizedBox(height: 10),
+          Text(genre.name, style: MiraType.screenTitle),
+        ],
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         const Text('SEERR', style: MiraType.sectionLabel),
         const SizedBox(height: 10),
-        Text('Discover', style: MiraType.screenTitle),
+        Text(_mode == _Mode.genres ? 'Genres' : 'Discover', style: MiraType.screenTitle),
         const SizedBox(height: 20),
         Row(
           children: <Widget>[
             for (final DiscoverList list in DiscoverList.values) ...<Widget>[
-              _Chip(label: _labels[list]!, active: list == _list, onSelect: () => _setList(list)),
+              _Chip(
+                label: _labels[list]!,
+                active: _mode == _Mode.lists && list == _list,
+                onSelect: () {
+                  _setMode(_Mode.lists);
+                  _setList(list);
+                },
+              ),
               const SizedBox(width: 16),
             ],
+            _Chip(label: 'Genres', active: _mode == _Mode.genres, onSelect: () => _setMode(_Mode.genres)),
             const SizedBox(width: 16),
             _Chip(label: 'Search', active: false, onSelect: _openSearch),
           ],
         ),
       ],
     );
+  }
+
+  Widget _genreGrid() {
+    final List<DiscoverGenre>? genres = _genres;
+    if (genres == null) return const SizedBox.shrink();
+    return LayoutBuilder(builder: (BuildContext context, BoxConstraints c) {
+      const int columns = 4;
+      const double tileHeight = 150;
+      final double width = (c.maxWidth - _ringRoom * 2 - _gap * (columns - 1)) / columns;
+      _genreFocus
+        ..rowExtent = tileHeight + _gap
+        ..mainAxisSpacing = _gap
+        ..itemCount = genres.length;
+      return GridView.builder(
+        controller: _genreFocus.scroll,
+        padding: EdgeInsets.fromLTRB(
+          _ringRoom,
+          _ringRoom,
+          _ringRoom,
+          _genreFocus.bottomPadding(c.maxHeight, top: _ringRoom, minimum: MiraMetrics.safeV),
+        ),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: columns,
+          mainAxisSpacing: _gap,
+          crossAxisSpacing: _gap,
+          childAspectRatio: width / tileHeight,
+        ),
+        itemCount: genres.length,
+        itemBuilder: (BuildContext context, int i) => DiscoverGenreTile(
+          label: genres[i].name,
+          autofocus: i == 0,
+          focusNode: _genreFocus.nodeFor(i),
+          onKey: (KeyEvent event) => _genreFocus.handleKey(i, event),
+          onSelect: () => _openGenre(genres[i]),
+        ),
+      );
+    });
   }
 
   Widget _body() {
@@ -235,11 +392,19 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         ),
       );
     }
+    if (_mode == _Mode.genres && widget.genre == null && widget.person == null) {
+      return _genreGrid();
+    }
     if (!_loaded) return const SizedBox.shrink();
     if (_titles.isEmpty) {
       return Align(
         alignment: Alignment.topLeft,
-        child: Text('Nothing here right now.', style: MiraType.body.copyWith(color: MiraColors.textTertiary)),
+        child: Text(
+          widget.person == null
+              ? 'Nothing here right now.'
+              : 'Seerr lists no films for ${widget.person!.name}.',
+          style: MiraType.body.copyWith(color: MiraColors.textTertiary),
+        ),
       );
     }
     return LayoutBuilder(builder: (BuildContext context, BoxConstraints c) {
@@ -291,6 +456,89 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         },
       );
     });
+  }
+}
+
+/// The breadcrumb on a pushed Discover screen, as a control rather than a
+/// label.
+///
+/// Focusable on purpose, and it is the first thing built: a genre or person
+/// screen has nothing else to focus until its grid arrives, and a screen whose
+/// first frame has no focusable control is one the d-pad cannot touch - the
+/// debug guard says so out loud. It doubles as a visible way back, which a
+/// label never was.
+class _BackCrumb extends StatelessWidget {
+  const _BackCrumb({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: MiraFocusable(
+        onSelect: () => Navigator.maybeOf(context)?.maybePop(),
+        debugLabel: 'back:$label',
+        builder: (BuildContext context, bool focused) => Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+          child: Text(
+            '\u2039  $label',
+            style: MiraType.nav.copyWith(
+              color: focused ? MiraColors.textPrimary : MiraColors.textSecondary,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A genre, as a plain card.
+///
+/// Deliberately not Films' genre tile: that one fans out three posters from
+/// the library behind the name, and Seerr's genre list carries neither posters
+/// nor counts - there are a thousand pages of Action. A name is the honest
+/// amount of information here.
+class DiscoverGenreTile extends StatelessWidget {
+  const DiscoverGenreTile({
+    super.key,
+    required this.label,
+    required this.onSelect,
+    this.autofocus = false,
+    this.focusNode,
+    this.onKey,
+  });
+
+  final String label;
+  final VoidCallback onSelect;
+  final bool autofocus;
+  final FocusNode? focusNode;
+  final KeyEventResult Function(KeyEvent event)? onKey;
+
+  @override
+  Widget build(BuildContext context) {
+    return MiraFocusable(
+      onSelect: onSelect,
+      autofocus: autofocus,
+      focusNode: focusNode,
+      onKey: onKey,
+      debugLabel: 'genre:$label',
+      builder: (BuildContext context, bool focused) => Container(
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.symmetric(horizontal: 28),
+        decoration: BoxDecoration(
+          color: MiraColors.textPrimary.withValues(alpha: focused ? 0.09 : 0.05),
+          borderRadius: MiraMetrics.borderRadius,
+          border: focused ? null : Border.all(color: MiraColors.surfaceBorder),
+        ),
+        child: Text(
+          label,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: MiraType.tileTitle.copyWith(fontSize: 30),
+        ),
+      ),
+    );
   }
 }
 
@@ -475,11 +723,16 @@ class _Chip extends StatelessWidget {
 
 /// The focused title, and what OK and Back do for it.
 class _InfoBar extends StatelessWidget {
-  const _InfoBar({required this.title});
+  const _InfoBar({required this.title, this.role});
 
   static const double height = 172;
 
   final DiscoverTitle title;
+
+  /// On a person's screen, what they did on this title - "Director", or the
+  /// character played. The whole point of the screen is that the grid mixes
+  /// acting and directing, so each poster has to say which it is.
+  final String? role;
 
   @override
   Widget build(BuildContext context) {
@@ -516,7 +769,12 @@ class _InfoBar extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 18),
-                Text(describeTitle(title), style: MiraType.meta.copyWith(fontSize: 20, color: MiraColors.textTertiary)),
+                Text(
+                  role == null ? describeTitle(title) : '$role  ·  ${describeTitle(title)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: MiraType.meta.copyWith(fontSize: 20, color: MiraColors.textTertiary),
+                ),
               ],
             ),
           ),
