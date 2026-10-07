@@ -408,6 +408,18 @@ class JellyfinClient {
   /// Has the server download [subtitle] and attach it to [item]. It then shows
   /// up as an external track - for every client, not just this box. Costs one
   /// of the OpenSubtitles account's daily downloads, so only call on intent.
+  /// Removes a subtitle file from the item on the server.
+  ///
+  /// Only external subtitles can go - the ones downloaded through the
+  /// OpenSubtitles plugin. A track embedded in the video file is part of the
+  /// file and Jellyfin will refuse. The deletion is server-side and therefore
+  /// affects every client, which is why the sheet asks twice.
+  Future<void> deleteSubtitle(MediaItem item, MediaTrack track) async {
+    _requireSession();
+    await _send('DELETE', _uri('/Videos/${item.id}/Subtitles/${track.index}'),
+        expectJson: false);
+  }
+
   Future<void> downloadSubtitle(MediaItem item, RemoteSubtitle subtitle) async {
     _requireSession();
     await _send(

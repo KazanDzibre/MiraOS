@@ -50,6 +50,13 @@ class _TracksSheetState extends State<TracksSheet> {
 
   late String _language = widget.languages.first;
   List<RemoteSubtitle>? _results;
+
+  /// The external subtitle whose Delete is armed. A remote is easy to press
+  /// by accident and the deletion is server-side - it is gone for every
+  /// client - so the first press asks and the second does it.
+  int? _deleteArmed;
+  int? _deleting;
+  String? _deleteError;
   bool _searching = false;
   String? _searchError;
   String? _downloadingId;
@@ -97,6 +104,35 @@ class _TracksSheetState extends State<TracksSheet> {
 
   /// Costs one of the account's daily OpenSubtitles downloads, so it only ever
   /// runs on an explicit OK - never on focus, never speculatively.
+  /// Removes a downloaded subtitle from the server, then drops it from the
+  /// sheet and from the current choice if it was the one selected.
+  Future<void> _delete(MediaTrack track) async {
+    setState(() {
+      _deleting = track.index;
+      _deleteArmed = null;
+      _deleteError = null;
+    });
+    try {
+      await widget.source.deleteSubtitle(_item, track);
+      if (!mounted) return;
+      final MediaItem refreshed = await widget.source.item(_item.id);
+      if (!mounted) return;
+      setState(() {
+        _item = refreshed;
+        _deleting = null;
+        if (_choice.subtitle?.index == track.index) {
+          _choice = _choice.withSubtitle(null);
+        }
+      });
+    } on JellyfinException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _deleting = null;
+        _deleteError = e.message;
+      });
+    }
+  }
+
   Future<void> _download(RemoteSubtitle subtitle) async {
     if (_downloadingId != null) return;
     setState(() => _downloadingId = subtitle.id);
@@ -204,10 +240,23 @@ class _TracksSheetState extends State<TracksSheet> {
       for (final MediaTrack t in shown)
         _TrackRow(
           title: trackName(t),
-          detail: trackDetail(t),
+          detail: _deleting == t.index ? 'Deleting…' : trackDetail(t),
           selected: _choice.subtitle?.index == t.index,
           onSelect: () => _choose(_choice.withSubtitle(t)),
+          // Only a downloaded subtitle can go; one embedded in the video file
+          // is part of the file, and the server refuses.
+          onDelete: t.isExternal && _deleting == null
+              ? () {
+                  if (_deleteArmed == t.index) {
+                    _delete(t);
+                  } else {
+                    setState(() => _deleteArmed = t.index);
+                  }
+                }
+              : null,
+          deleteArmed: _deleteArmed == t.index,
         ),
+      if (_deleteError != null) _Note(_deleteError!),
       if (hidden > 0)
         _TrackRow(
           title: '$hidden more on this file',
@@ -344,6 +393,8 @@ class _TrackRow extends StatelessWidget {
     this.selected = false,
     this.compact = false,
     this.download = false,
+    this.onDelete,
+    this.deleteArmed = false,
   });
 
   final String title;
@@ -353,9 +404,15 @@ class _TrackRow extends StatelessWidget {
   final bool download;
   final VoidCallback onSelect;
 
+  /// Set for a downloaded subtitle: Right from the row reaches it.
+  final VoidCallback? onDelete;
+
+  /// True once the first press has asked; the next one deletes.
+  final bool deleteArmed;
+
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    final Widget row = Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: MiraFocusable(
         onSelect: onSelect,
@@ -400,6 +457,46 @@ class _TrackRow extends StatelessWidget {
           ),
         ),
       ),
+    );
+
+    if (onDelete == null) return row;
+
+    // Beside the row rather than inside it, so Right reaches Delete and OK on
+    // the row still just picks the subtitle. Nothing destructive sits where
+    // the eye expects "choose this one".
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Expanded(child: row),
+        const SizedBox(width: 10),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: MiraFocusable(
+            onSelect: onDelete!,
+            debugLabel: 'delete:$title',
+            builder: (BuildContext context, bool focused) => Container(
+              height: MiraMetrics.minControl,
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: deleteArmed
+                    ? MiraColors.danger.withValues(alpha: focused ? 0.9 : 0.7)
+                    : MiraColors.textPrimary.withValues(alpha: focused ? 0.12 : 0.04),
+                borderRadius: MiraMetrics.borderRadius,
+              ),
+              child: Text(
+                deleteArmed ? 'Really delete?' : 'Delete',
+                style: MiraType.meta.copyWith(
+                  fontSize: 18,
+                  color: deleteArmed || focused
+                      ? MiraColors.textPrimary
+                      : MiraColors.textTertiary,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

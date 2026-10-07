@@ -63,6 +63,10 @@ abstract interface class LibrarySource {
   Future<List<RemoteSubtitle>> searchSubtitles(MediaItem item, String language);
   Future<void> downloadSubtitle(MediaItem item, RemoteSubtitle subtitle);
 
+  /// Deletes a downloaded subtitle from the item on the server. Only external
+  /// tracks can be deleted; an embedded one is part of the video file.
+  Future<void> deleteSubtitle(MediaItem item, MediaTrack track);
+
   /// The audio and subtitles last picked for [item]; the file's defaults if
   /// nothing was. An episode with nothing of its own takes its show's, so a
   /// language picked once carries on through the series. [item] must carry
@@ -464,6 +468,9 @@ class DemoLibrarySource implements LibrarySource {
   static final Map<String, Map<String, String>> _savedPrefs = <String, Map<String, String>>{};
 
   @override
+  Future<void> deleteSubtitle(MediaItem item, MediaTrack track) => _soon(null);
+
+  @override
   Future<TrackChoice> savedTracks(MediaItem item) => _soon(TrackChoice.fromPrefs(
       _savedPrefs[item.id] ??
           (item.seriesId == null ? null : _savedPrefs[item.seriesId!]) ??
@@ -665,6 +672,12 @@ class JellyfinLibrarySource implements LibrarySource {
   Future<void> downloadSubtitle(MediaItem item, RemoteSubtitle subtitle) async {
     await _signIn();
     return client.downloadSubtitle(item, subtitle);
+  }
+
+  @override
+  Future<void> deleteSubtitle(MediaItem item, MediaTrack track) async {
+    await _signIn();
+    await client.deleteSubtitle(item, track);
   }
 
   @override

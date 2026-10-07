@@ -138,22 +138,34 @@ abstract final class JellyfinDeviceProfile {
   /// server CPU, bandwidth and decode work on the Pi.
   static const int _maxTranscodeBitrate = 12000000;
 
-  /// Whether to ask the server for HEVC untouched.
+  /// HEVC direct play is on, and the bit depth it is trusted to.
   ///
-  /// Off by default while the SAND display path is being proven: declaring it
-  /// before the picture is right would break 82% of the library, which is far
-  /// worse than a transcode. `MIRA_HEVC=1` turns it on for a live test, and
-  /// this becomes the default once a 10-bit film plays correctly end to end.
-  static bool get hevcDirectPlay {
-    final String? on = Platform.environment['MIRA_HEVC'];
-    return on != null && on.isNotEmpty && on != '0';
+  /// 8-bit is proven on the box: *Hair* direct-played with a correct picture,
+  /// the decoder at a few percent of a core and the server idle. 10-bit
+  /// negotiates - the sink advertises NV12_10LE32 now that P030 maps back -
+  /// but has not been seen on a television yet, and a wrong layout shows as
+  /// green stripes. Since 10-bit is 70% of this library, the default stays at
+  /// 8 until someone has watched one: a transcode is worse than direct play,
+  /// but far better than stripes.
+  ///
+  /// `MIRA_HEVC=10` (or `=1`) raises it to 10-bit for a live test; `=0`
+  /// disables HEVC direct play altogether.
+  static int get hevcMaxBitDepth {
+    final String? setting = Platform.environment['MIRA_HEVC'];
+    if (setting == null || setting.isEmpty) return 8;
+    if (setting == '0') return 0;
+    return int.tryParse(setting) == 10 ? 10 : 10;
   }
+
+  static bool get hevcDirectPlay => hevcMaxBitDepth > 0;
 
   static Map<String, Object?> build({
     int maxStreamingBitrate = defaultMaxStreamingBitrate,
     bool? hevc,
+    int? hevcBitDepth,
   }) {
-    final bool withHevc = hevc ?? hevcDirectPlay;
+    final int hevcDepth = hevcBitDepth ?? hevcMaxBitDepth;
+    final bool withHevc = hevc ?? (hevcDepth > 0);
     return <String, Object?>{
       'Name': 'Mira (Raspberry Pi 4)',
       'MaxStreamingBitrate': maxStreamingBitrate,
@@ -233,8 +245,9 @@ abstract final class JellyfinDeviceProfile {
             'Conditions': <Map<String, Object?>>[
               _cond('LessThanEqual', 'Width', '1920'),
               _cond('LessThanEqual', 'Height', '1080'),
-              _cond('LessThanEqual', 'VideoBitDepth', '10'),
-              _cond('EqualsAny', 'VideoProfile', 'main|main 10'),
+              _cond('LessThanEqual', 'VideoBitDepth', '$hevcDepth'),
+              _cond('EqualsAny', 'VideoProfile',
+                  hevcDepth >= 10 ? 'main|main 10' : 'main'),
               _cond('NotEquals', 'IsAnamorphic', 'true'),
             ],
           },

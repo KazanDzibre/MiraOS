@@ -15,7 +15,9 @@ import 'package:mira_shell/ui/discover_screen.dart';
 import 'package:mira_shell/ui/discover_search_screen.dart';
 import 'package:mira_shell/ui/films_screen.dart';
 import 'package:mira_shell/ui/library_search_screen.dart';
+import 'package:mira_shell/core/track_choice.dart';
 import 'package:mira_shell/ui/player_screen.dart';
+import 'package:mira_shell/ui/tracks_sheet.dart';
 import 'package:mira_shell/ui/widgets/chrome.dart';
 
 Future<void> _loadFonts() async {
@@ -194,6 +196,8 @@ void main() {
     });
   });
 
+  _deleteSubtitleTests();
+
   group('holding an arrow seeks faster and faster', () {
     // The ramp is pure arithmetic, so it is tested as arithmetic: driving a
     // hundred and fifty key repeats through a widget to measure a curve is
@@ -258,6 +262,42 @@ void main() {
           reason: 'eight repeats of a held arrow should cover far more than another tap');
 
       await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowRight);
+      await _settleTimers(tester);
+    });
+  });
+}
+
+void _deleteSubtitleTests() {
+  // Deleting is server-side: the file goes for every client, so a stray press
+  // on a remote must not be enough.
+  group('deleting a downloaded subtitle', () {
+    testWidgets('asks twice, and only deletes an external track',
+        (WidgetTester tester) async {
+      _sizeToTv(tester);
+      final MediaItem item =
+          (await tester.runAsync(() => const DemoLibrarySource().item('demo-ashfall')))!;
+      final List<MediaTrack> subs = item.subtitleTracks;
+      expect(subs.any((MediaTrack t) => t.isExternal), isTrue,
+          reason: 'the demo film needs an external subtitle for this test');
+
+      await tester.pumpWidget(_harness(TracksSheet(
+        source: const DemoLibrarySource(),
+        item: item,
+        initial: const TrackChoice(),
+        onChanged: (TrackChoice _, MediaItem __) {},
+      )));
+      await tester.pumpAndSettle();
+
+      // One Delete control per external subtitle, and none for embedded ones.
+      final int external = subs.where((MediaTrack t) => t.isExternal).length;
+      expect(find.text('Delete'), findsNWidgets(external));
+
+      _press(tester, 'Delete');
+      await tester.pumpAndSettle();
+      expect(find.text('Really delete?'), findsOneWidget,
+          reason: 'the first press must ask rather than delete');
+      expect(find.text('Delete'), findsNWidgets(external - 1));
+
       await _settleTimers(tester);
     });
   });
