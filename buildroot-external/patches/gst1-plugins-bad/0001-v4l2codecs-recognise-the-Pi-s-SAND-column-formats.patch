@@ -28,8 +28,8 @@ smaller change that makes the hardware reachable.
 Signed-off-by: Mira <noreply@anthropic.com>
 ---
 --- a/sys/v4l2codecs/gstv4l2format.c	2026-10-07 21:05:59.549411594 +0200
-+++ b/sys/v4l2codecs/gstv4l2format.c	2026-10-07 21:05:59.564635848 +0200
-@@ -31,6 +31,19 @@
++++ b/sys/v4l2codecs/gstv4l2format.c	2026-10-07 22:45:17.186246219 +0200
+@@ -31,6 +31,32 @@
    gint subsampling;
  };
  
@@ -45,11 +45,24 @@ Signed-off-by: Mira <noreply@anthropic.com>
 +#ifndef V4L2_PIX_FMT_NV12_10_COL128
 +#define V4L2_PIX_FMT_NV12_10_COL128 v4l2_fourcc('N', 'C', '3', '0')
 +#endif
++/*
++ * ...and their two-plane twins, which is what the driver actually hands back.
++ * Asked for plain NV12 it substitutes 'Nc12' - the same SAND layout with Y and
++ * UV as separate planes - and a decoder whose returned format is not in this
++ * table fails negotiation with "Unsupported bitdepth/chroma format", which is
++ * what happened before these were added (measured on the box, 2026-10-07).
++ */
++#ifndef V4L2_PIX_FMT_NV12MT_COL128
++#define V4L2_PIX_FMT_NV12MT_COL128 v4l2_fourcc('N', 'c', '1', '2')
++#endif
++#ifndef V4L2_PIX_FMT_NV12MT_10_COL128
++#define V4L2_PIX_FMT_NV12MT_10_COL128 v4l2_fourcc('N', 'c', '3', '0')
++#endif
 +
  static struct FormatEntry format_map[] = {
    {V4L2_PIX_FMT_NV12, 1, GST_VIDEO_FORMAT_NV12, 8, 420},
    {V4L2_PIX_FMT_YUYV, 1, GST_VIDEO_FORMAT_YUY2, 8, 422},
-@@ -42,6 +55,30 @@
+@@ -42,6 +68,32 @@
    {V4L2_PIX_FMT_NV15_4L4, 1, GST_VIDEO_FORMAT_NV12_10LE40_4L4, 10, 420},
    {V4L2_PIX_FMT_MT2110T, 2, GST_VIDEO_FORMAT_MT2110T, 10, 420},
    {V4L2_PIX_FMT_MT2110R, 2, GST_VIDEO_FORMAT_MT2110R, 10, 420},
@@ -77,6 +90,8 @@ Signed-off-by: Mira <noreply@anthropic.com>
 +   */
 +  {V4L2_PIX_FMT_NV12_COL128, 1, GST_VIDEO_FORMAT_NV12, 8, 420},
 +  {V4L2_PIX_FMT_NV12_10_COL128, 1, GST_VIDEO_FORMAT_NV12_10LE32, 10, 420},
++  {V4L2_PIX_FMT_NV12MT_COL128, 2, GST_VIDEO_FORMAT_NV12, 8, 420},
++  {V4L2_PIX_FMT_NV12MT_10_COL128, 2, GST_VIDEO_FORMAT_NV12_10LE32, 10, 420},
    {0,}
  };
  
