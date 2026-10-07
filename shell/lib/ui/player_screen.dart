@@ -653,6 +653,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   ),
                   const SizedBox(width: 18),
                   MiraButton(label: 'Subtitles & audio', onSelect: _openTracks),
+                  const SizedBox(width: 18),
+                  MiraButton(label: 'Stop', onSelect: _exit),
+                  // Last on purpose: it only appears when a text subtitle is
+                  // on, and a control that comes and goes must not sit
+                  // between two that are always there - it moved Stop out of
+                  // reach (found on the box, 2026-10-08).
                   if (_choice.subtitle != null && _choice.subtitle!.isTextBased) ...<Widget>[
                     const SizedBox(width: 18),
                     _SubtitleDelay(
@@ -660,8 +666,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       onChanged: _setSubtitleOffset,
                     ),
                   ],
-                  const SizedBox(width: 18),
-                  MiraButton(label: 'Stop', onSelect: _exit),
                   const Spacer(),
                   const _Hints(),
                 ],

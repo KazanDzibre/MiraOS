@@ -87,7 +87,35 @@ box and never transcoding again. 82% of the library is HEVC.
 - [ ] Re-measure after. The whole point is removing the server's work, so the
       proof is CPU on *both* ends.
 
-## 4. The hitch: playback degrades over a session (open, half-diagnosed)
+## 4. Transcoded streams run 10 seconds ahead of themselves
+
+Found 2026-10-08, by asking why subtitles came good the moment Dune started
+direct-playing. They are measured facts, not a theory:
+
+```
+transcoded HLS stream:   start_time = 10.083422
+direct-played file:      start_time =  0.000000
+```
+
+ffmpeg starts its MPEG-TS output at a PTS of about ten seconds, so during a
+transcode the player's reported position is the film's position **plus ten
+seconds**. Everything keyed to position inherits that:
+
+- [ ] **Subtitles appear ~10 s early on anything transcoded.** The shell draws
+      them itself against the player position, so the lookup lands ten seconds
+      further into the film than the picture does. Direct play has no offset,
+      which is why Dune reads correctly now.
+- [ ] **Progress reports are ~10 s ahead**, so resume positions on transcoded
+      titles are a little past where you stopped.
+- [ ] The fix is to learn the stream's origin once per playback and subtract
+      it - the first reported position after opening, against the position
+      that was asked for - rather than assuming a stream starts at zero.
+      `TrackChoice.subtitleOffset` lets a viewer paper over it meanwhile.
+
+This also explains why the subtitle offset feature felt necessary: part of
+what it was correcting was ours, not the subtitle's.
+
+## 5. The hitch: playback degrades over a session (open, half-diagnosed)
 
 The live investigation, written up in CLAUDE.md under *Playback degrades over
 a session*. In short: nothing is dropped, nothing is copied, the decoder and
@@ -107,7 +135,7 @@ while fds and fences stay flat.
       it writes a line a second to a 115200 baud console, which costs ~9 ms of
       main-thread time each time.
 
-## 5. Unverified — claims that have never been exercised
+## 6. Unverified — claims that have never been exercised
 
 Honest list of things believed but not shown. Each one is a candidate for the
 next surprise.
@@ -125,7 +153,7 @@ next surprise.
 - [ ] NetBird from *outside* the LAN. Everything so far was same-subnet; the
       20 Mbps `defaultMaxStreamingBitrate` is the knob that matters remotely.
 
-## 6. Scrub preview (Netflix-style), waiting on the server
+## 7. Scrub preview (Netflix-style), waiting on the server
 
 Asked for on 2026-10-06 and deferred the same day: the client work is small,
 but it cannot show anything until Jellyfin has the images.
@@ -146,7 +174,7 @@ but it cannot show anything until Jellyfin has the images.
       timestamp" endpoint, and decoding a second stream on the Pi to make one
       is not on.
 
-## 7. Server side — done on 2026-10-07
+## 8. Server side — done on 2026-10-07
 
 Applied to the real Jellyfin (192.168.100.34, Docker, linuxserver image). The
 old values are backed up in `/tmp/claude-*/encoding-backup.json`; the same
@@ -180,7 +208,15 @@ Still optional, and measured:
       a fix.
 - [ ] Five stale `probe*` sessions in the dashboard from testing; they expire.
 
-## 8. Rough edges
+## 9. Next: audio codecs (agreed for 2026-10-08)
+
+HEVC direct play now works, so the remaining transcodes are mostly about
+*audio*: the profile takes AAC only, so an HEVC film with E-AC3 or DTS is
+re-encoded whole - Gladiator among them. The box already has `avdec_ac3`,
+`avdec_eac3` and the parsers from audioparsers, so this is a profile entry
+plus a codec-aware audio branch in `pipelineFor`, worth roughly fifty films.
+
+## 10. Rough edges
 
 Small, visible, none blocking.
 
@@ -198,7 +234,7 @@ Small, visible, none blocking.
 - [ ] 4K video mode-switching (UI stays 1080p). Less urgent now that everything
       arrives as 1080p H.264.
 
-## 9. Deferred on purpose — do not drift into these
+## 11. Deferred on purpose — do not drift into these
 
 - **YouTube** and any second *graphical* process. It forks the architecture
   (DRM master), which is why v1 stops where it does. See *The v2 fork*.
