@@ -94,55 +94,49 @@ on pie") after HEVC titles would not play at all on the box.
 
 Why, in order of how much each matters:
 
-- **HEVC hardware decode: the blocker is understood, and half the fix is in.**
-  Measured on the box with a cross-compiled `VIDIOC_ENUM_FMT` probe and
-  `GST_DEBUG=v4l2codecs*:7`, then traced through Mesa and flutter-pi
-  (2026-10-06/07):
+- **HEVC direct play works** (2026-10-08). *Hair* (8-bit) and *Dune* (HEVC
+  Main 10, 1920x800) both played with Jellyfin reporting **PlayMethod
+  DirectPlay and no transcode**: decoder on `/dev/video19`, correct picture,
+  no dropped frames, server idle. The 10-bit case is the one that matters -
+  70% of this library - and it is also the quality gap that was visible
+  against Plex, since transcoding cost the 10-bit depth.
 
-  - The plugin finds everything. `/dev/media0-3` exist, `/dev/video19` is
-    `rpi-hevc-dec`, and the log reads *Found decoder device rpi-hevc-dec-proc*
-    -> *Registering rpi-hevc-dec-proc as H265 Decoder* -> *Not registering
-    H265 decoder since it produces no supported format*, after
-    *Probed caps: EMPTY*.
-  - Because the decoder's capture queue offers **only Broadcom's SAND column
-    formats**: `NC12` and 10-bit `NC30`. No plain NV12, in any configuration.
-    `/dev/video10` (H.264) does offer NV12 - which is exactly why that path
-    works and this one does not.
-  - **But the GPU can sample SAND directly.** `v3d_screen.c` advertises
-    `DRM_FORMAT_MOD_BROADCOM_SAND128` for `PIPE_FORMAT_NV12`, and for
-    `PIPE_FORMAT_P030` (the 10-bit one) it advertises SAND128 *and nothing
-    else*, marked `external_only`. `v3d_resource.c` imports it, taking the
-    column stride from the modifier's parameter. So no conversion pass is
-    needed: decoder -> dmabuf -> EGLImage with the right modifier -> sampled.
+  It took three patches, each for a separate reason:
 
-  **Done:** `patches/gst1-plugins-bad/0001-v4l2codecs-recognise-the-Pi-s-SAND-column-formats.patch`
-  maps NC12 to NV12 and NC30 to NV12_10LE32 so the decoder registers at all.
-  Size and stride already come from the driver's `sizeimage`/`bytesperline`,
-  so the linear geometry is never used to size a buffer. `BR2_GLOBAL_PATCH_DIR`
-  now points at `buildroot-external/patches`.
+  1. **GStreamer could not describe the frames.** The Pi's decoder offers
+     only Broadcom's SAND column formats (`NC12`, 10-bit `NC30`), GStreamer
+     has no video format for a column layout, so `enum_src_formats` returned
+     EMPTY and the plugin refused to register an H265 decoder at all.
+     `patches/gst1-plugins-bad/0001-...` maps them to the linear formats with
+     the same sample layout; size and stride come from the driver anyway.
+  2. **The decoder must be asked for the single-plane format.** Asked for
+     plain NV12 it answers with the *two-plane* SAND variant, whose geometry
+     is indistinguishable from a linear frame - stride 1920 on a 1920-wide
+     image - so nothing downstream can tell columns from rows. `S_FMT` is
+     handed a struct left from a previous `G_FMT`, so the plane count has to
+     be set with the pixelformat or the stale one wins.
+  3. **flutter-pi must import with the SAND modifier**
+     (`package/flutterpi/0008-...`). Two traps: the stride has to come from
+     the buffer's **video meta**, not the caps - caps describe an idealised
+     linear frame, the meta carries the real column height (1560 on a
+     1920x1040 film, 1200 on 1920x800) - and `DRM_FORMAT_P030` has to map
+     back to a GStreamer 10-bit format or the appsink advertises no 10-bit
+     format at all and Main 10 cannot negotiate. Reading the caps instead of
+     the meta put green stripes on the television, which is the symptom to
+     expect if this regresses.
 
-  **Not done, and the order to do it in:**
-  1. Prove the decoder actually decodes: `v4l2slh265dec` to a `fakesink` on
-     the box, watching CPU. No display needed, no shell changes - the pipeline
-     goes in through `MIRA_PIPELINE`.
-  2. Measure the SAND geometry with `sandprobe.c` (built, aarch64): the
-     modifier carries a column-height parameter and the importer needs it.
-  3. Teach flutter-pi the modifier. It already enumerates EGL's
-     format+modifier pairs (`frame.c:153`) and then hardcodes
-     `DRM_FORMAT_MOD_LINEAR` everywhere after (lines ~300, 807, 833, and the
-     match at 1028). With LINEAR the picture will decode and come out
-     scrambled into columns - that is the symptom that says step 3 is the one
-     left.
-  4. 10-bit needs `external_only` sampling (`samplerExternalOES`), which the
-     texture path may or may not already do.
-  5. Only then widen the DeviceProfile. Until it is proven, HEVC stays
-     transcoded - a scrambled or black picture on 82% of the library is far
-     worse than a transcode.
+  What made it possible at all: **V3D can take SAND**. `v3d_screen.c`
+  advertises `BROADCOM_SAND128` for NV12 and, for 10-bit, for P030 alone
+  (external_only), and blits it to a tiled copy on the GPU when sampled. The
+  modifier's parameter is the column height - `vc4_plane.c` range-checks it
+  as one - which matches the driver exactly: 15 columns of 128 bytes by 1620
+  rows is 3110400 bytes, its own `sizeimage`.
 
-  It matters because **82% of this library is HEVC** (298 of 364), and
-  **70% is 10-bit Main 10** (256 titles) - so transcoding also costs the
-  10-bit depth, which is the visible difference against a player that direct
-  plays (noticed on *The Imitation Game*, HEVC Main 10 at 5.5 Mbps, 2026-10-06).
+  **Still transcoded, and worth fixing next:** titles whose *audio* the box
+  will not take. The profile direct-plays AAC only, so an HEVC film with
+  E-AC3 or DTS is re-encoded whole - *Gladiator* is one. The box already has
+  `avdec_ac3`, `avdec_eac3` and the parsers, so teaching the pipeline those
+  would let roughly fifty more films through with the video untouched.
 - **AC3/DTS passthrough is declared nowhere, deliberately.** Nothing on the box
   can pass them through: vc4-hdmi via ALSA's `default` takes 48 kHz S16LE
   stereo and refuses the rest outright. The server's downmix is better than

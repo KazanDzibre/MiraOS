@@ -140,21 +140,21 @@ abstract final class JellyfinDeviceProfile {
 
   /// HEVC direct play is on, and the bit depth it is trusted to.
   ///
-  /// 8-bit is proven on the box: *Hair* direct-played with a correct picture,
-  /// the decoder at a few percent of a core and the server idle. 10-bit
-  /// negotiates - the sink advertises NV12_10LE32 now that P030 maps back -
-  /// but has not been seen on a television yet, and a wrong layout shows as
-  /// green stripes. Since 10-bit is 70% of this library, the default stays at
-  /// 8 until someone has watched one: a transcode is worse than direct play,
-  /// but far better than stripes.
+  /// Both are proven on the box (2026-10-08). *Hair*, 8-bit, and *Dune*,
+  /// HEVC Main 10 at 1920x800, each direct-played with a correct picture -
+  /// Jellyfin reporting PlayMethod DirectPlay and no transcode, the decoder
+  /// on /dev/video19, no dropped frames, and the server doing nothing at all.
+  /// 10-bit matters most: it is 70% of this library, and transcoding it to
+  /// 8-bit H.264 was the visible quality gap against a player that direct
+  /// plays.
   ///
-  /// `MIRA_HEVC=10` (or `=1`) raises it to 10-bit for a live test; `=0`
-  /// disables HEVC direct play altogether.
+  /// `MIRA_HEVC=8` holds it to 8-bit, `=0` turns HEVC direct play off and
+  /// goes back to letting the server transcode.
   static int get hevcMaxBitDepth {
     final String? setting = Platform.environment['MIRA_HEVC'];
-    if (setting == null || setting.isEmpty) return 8;
+    if (setting == null || setting.isEmpty) return 10;
     if (setting == '0') return 0;
-    return int.tryParse(setting) == 10 ? 10 : 10;
+    return int.tryParse(setting) == 8 ? 8 : 10;
   }
 
   static bool get hevcDirectPlay => hevcMaxBitDepth > 0;

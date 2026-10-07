@@ -111,6 +111,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
   /// key-up would otherwise leave the film accelerating forever.
   Timer? _holdTimer;
 
+  /// Debounces saving a subtitle offset that is being nudged with the remote.
+  Timer? _offsetSaveTimer;
+
   final FocusNode _scrubNode = FocusNode(debugLabel: 'player:scrub');
   final FocusNode _wakeNode = FocusNode(debugLabel: 'player:wake');
   final FocusNode _playNode = FocusNode(debugLabel: 'player:play');
@@ -128,6 +131,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _reportTimer?.cancel();
     _seekTimer?.cancel();
     _holdTimer?.cancel();
+    _offsetSaveTimer?.cancel();
     _player.status.removeListener(_onStatus);
     if (!_stopped) {
       // Popped from outside (the app's Back, say): still tell the server where
@@ -281,6 +285,20 @@ class _PlayerScreenState extends State<PlayerScreen> {
       if (mounted) setState(() => _pendingSeek = null);
     });
     _showOverlay();
+  }
+
+  /// Shifts the subtitles and remembers it for this film.
+  ///
+  /// Saved the same way the track choice is - so a subtitle that needed two
+  /// seconds tonight still has them tomorrow - but debounced, because this is
+  /// driven by a held arrow key and each save is a round trip to the server.
+  void _setSubtitleOffset(Duration offset) {
+    setState(() => _choice = _choice.withSubtitleOffset(offset));
+    _showOverlay();
+    _offsetSaveTimer?.cancel();
+    _offsetSaveTimer = Timer(const Duration(seconds: 2), () {
+      widget.source.saveTracks(_item, _choice).catchError((Object _) {});
+    });
   }
 
   void _reportProgress() {
@@ -553,7 +571,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
         child: ValueListenableBuilder<PlaybackStatus>(
           valueListenable: _player.status,
           builder: (BuildContext context, PlaybackStatus s, Widget? _) {
-            final String? line = subs.textAt(s.position);
+            final String? line = subs.textAt(s.position, offset: _choice.subtitleOffset);
             if (line == null) return const SizedBox.shrink();
             return Text(line, textAlign: TextAlign.center, style: MiraType.subtitle);
           },
@@ -635,6 +653,13 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   ),
                   const SizedBox(width: 18),
                   MiraButton(label: 'Subtitles & audio', onSelect: _openTracks),
+                  if (_choice.subtitle != null && _choice.subtitle!.isTextBased) ...<Widget>[
+                    const SizedBox(width: 18),
+                    _SubtitleDelay(
+                      offset: _choice.subtitleOffset,
+                      onChanged: _setSubtitleOffset,
+                    ),
+                  ],
                   const SizedBox(width: 18),
                   MiraButton(label: 'Stop', onSelect: _exit),
                   const Spacer(),
@@ -802,6 +827,86 @@ class _Hints extends StatelessWidget {
         const SizedBox(width: 13),
         Text(label, style: MiraType.status.copyWith(fontSize: 20, color: MiraColors.textPrimary)),
       ],
+    );
+  }
+}
+
+/// Shifts the subtitles against the picture, adjusted with left and right.
+///
+/// It takes the arrows itself rather than opening a screen, because the only
+/// way to judge subtitle timing is to watch the film while changing it. Each
+/// press is a quarter of a second; holding goes in whole seconds, since a
+/// subtitle for the wrong cut is usually out by several.
+class _SubtitleDelay extends StatelessWidget {
+  const _SubtitleDelay({required this.offset, required this.onChanged});
+
+  static const Duration _step = Duration(milliseconds: 250);
+  static const Duration _bigStep = Duration(seconds: 1);
+  static const Duration _limit = Duration(seconds: 60);
+
+  final Duration offset;
+  final ValueChanged<Duration> onChanged;
+
+  void _nudge(int direction, {required bool repeat}) {
+    final Duration step = repeat ? _bigStep : _step;
+    Duration next = offset + step * direction;
+    if (next > _limit) next = _limit;
+    if (next < -_limit) next = -_limit;
+    onChanged(next);
+  }
+
+  KeyEventResult _onKey(KeyEvent event) {
+    if (event is KeyUpEvent) return KeyEventResult.ignored;
+    final bool repeat = event is KeyRepeatEvent;
+    if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+      _nudge(-1, repeat: repeat);
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+      _nudge(1, repeat: repeat);
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  String get _label {
+    if (offset == Duration.zero) return 'Subtitle delay  0.0 s';
+    final double seconds = offset.inMilliseconds / 1000;
+    final String sign = seconds > 0 ? '+' : '-';
+    return 'Subtitle delay  $sign${seconds.abs().toStringAsFixed(2)} s';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MiraFocusable(
+      onKey: _onKey,
+      // OK clears it: the quickest way back when a guess went wrong.
+      onSelect: () => onChanged(Duration.zero),
+      debugLabel: 'player:subtitle-delay',
+      builder: (BuildContext context, bool focused) => Container(
+        height: MiraMetrics.minControl,
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: MiraColors.textPrimary.withValues(alpha: focused ? 0.14 : 0.06),
+          borderRadius: MiraMetrics.borderRadius,
+          border: Border.all(
+            color: focused ? MiraColors.accent : MiraColors.surfaceBorder,
+            width: focused ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Text(_label, style: MiraType.control.copyWith(fontSize: 20)),
+            if (focused) ...<Widget>[
+              const SizedBox(width: 14),
+              Text('< >  adjust   ·   OK  reset',
+                  style: MiraType.meta.copyWith(fontSize: 15, color: MiraColors.textTertiary)),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }

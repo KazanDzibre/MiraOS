@@ -79,7 +79,16 @@ class Subtitles {
   ///
   /// Called on every position update, so it is a binary search rather than a
   /// scan. Overlapping cues - two speakers at once - are joined.
-  String? textAt(Duration position) {
+  /// What should be on screen at [position], shifted by [offset].
+  ///
+  /// A positive offset shows each line later, which is what a subtitle timed
+  /// for a different cut usually needs. Shifting the lookup rather than the
+  /// cues means the adjustment is free and can be changed while watching.
+  String? textAt(Duration position, {Duration offset = Duration.zero}) {
+    return _textAtExact(position - offset);
+  }
+
+  String? _textAtExact(Duration position) {
     int lo = 0;
     int hi = cues.length - 1;
     int last = -1;

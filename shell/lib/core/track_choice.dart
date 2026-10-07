@@ -2,13 +2,24 @@ import '../jellyfin/models.dart';
 
 /// Which audio and subtitle track to use for one film.
 class TrackChoice {
-  const TrackChoice({this.audio, this.subtitle});
+  const TrackChoice({this.audio, this.subtitle, this.subtitleOffset = Duration.zero});
 
   /// Null means the file's default audio track.
   final MediaTrack? audio;
 
   /// Null means subtitles off.
   final MediaTrack? subtitle;
+
+  /// How far the subtitles are shifted against the picture.
+  ///
+  /// Positive means later: the lines appear further into the film, which is
+  /// what a subtitle written for a different cut usually needs. Subtitles are
+  /// drawn by the shell from the server's WebVTT, so this costs nothing and
+  /// applies instantly - no re-fetch, no restart.
+  ///
+  /// Kept per film with the track choice, because a subtitle that is out by
+  /// two seconds is out by two seconds every time it is played.
+  final Duration subtitleOffset;
 
   /// A bitmap subtitle the server must burn into the picture.
   bool get burnsInSubtitle => subtitle != null && !subtitle!.isTextBased;
@@ -19,23 +30,36 @@ class TrackChoice {
       (audio != null && !audio!.isDefault) || burnsInSubtitle;
 
   TrackChoice withAudio(MediaTrack? audio) =>
-      TrackChoice(audio: audio, subtitle: subtitle);
+      TrackChoice(audio: audio, subtitle: subtitle, subtitleOffset: subtitleOffset);
 
+  /// A different subtitle starts in sync again: an offset belongs to the file
+  /// it was measured against, not to the film.
   TrackChoice withSubtitle(MediaTrack? subtitle) =>
       TrackChoice(audio: audio, subtitle: subtitle);
+
+  TrackChoice withSubtitleOffset(Duration offset) =>
+      TrackChoice(audio: audio, subtitle: subtitle, subtitleOffset: offset);
 
   /// The stored form, as the server keeps it for one film.
   Map<String, String> toPrefs() => <String, String>{
         'audio': audio == null ? 'default' : _encode(audio!),
         'subtitle': subtitle == null ? 'off' : _encode(subtitle!),
+        'subtitleOffsetMs': '${subtitleOffset.inMilliseconds}',
       };
 
   /// The choice stored for [item], matched against its current tracks. A track
   /// that no longer matches falls back to the default rather than guessing.
-  static TrackChoice fromPrefs(Map<String, String> prefs, MediaItem item) => TrackChoice(
-        audio: _decode(prefs['audio'], item.audioTracks),
-        subtitle: _decode(prefs['subtitle'], item.subtitleTracks),
-      );
+  static TrackChoice fromPrefs(Map<String, String> prefs, MediaItem item) {
+    final MediaTrack? subtitle = _decode(prefs['subtitle'], item.subtitleTracks);
+    return TrackChoice(
+      audio: _decode(prefs['audio'], item.audioTracks),
+      subtitle: subtitle,
+      // Only meaningful alongside the subtitle it was measured against.
+      subtitleOffset: subtitle == null
+          ? Duration.zero
+          : Duration(milliseconds: int.tryParse(prefs['subtitleOffsetMs'] ?? '') ?? 0),
+    );
+  }
 
   // Index plus language and codec: an index alone can name a different track
   // after the server rescans the file or a subtitle is deleted.

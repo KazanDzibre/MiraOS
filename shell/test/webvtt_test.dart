@@ -44,4 +44,33 @@ void main() {
     );
     expect(s.cues.single.text, 'Kept');
   });
+
+  // A subtitle written for a different cut is simply early or late, and the
+  // shell draws the lines itself, so shifting the lookup is the whole fix.
+  group('subtitle offset', () {
+    test('a positive offset shows each line later', () {
+      final Subtitles s = Subtitles.parseWebVtt(jellyfin);
+      const Duration at = Duration(minutes: 2, seconds: 2, milliseconds: 730);
+
+      expect(s.textAt(at), 'The world is changed.');
+      // Shifted two seconds later, that moment is now before the line.
+      expect(s.textAt(at, offset: const Duration(seconds: 2)), isNull);
+      // ...and the line turns up two seconds further in.
+      expect(s.textAt(at + const Duration(seconds: 2), offset: const Duration(seconds: 2)),
+          'The world is changed.');
+    });
+
+    test('a negative offset shows each line earlier', () {
+      final Subtitles s = Subtitles.parseWebVtt(jellyfin);
+      const Duration at = Duration(minutes: 2, seconds: 2, milliseconds: 730);
+      expect(s.textAt(at - const Duration(seconds: 3), offset: const Duration(seconds: -3)),
+          'The world is changed.');
+    });
+
+    test('no offset behaves exactly as before', () {
+      final Subtitles s = Subtitles.parseWebVtt(jellyfin);
+      const Duration at = Duration(minutes: 2, seconds: 2, milliseconds: 730);
+      expect(s.textAt(at, offset: Duration.zero), s.textAt(at));
+    });
+  });
 }
