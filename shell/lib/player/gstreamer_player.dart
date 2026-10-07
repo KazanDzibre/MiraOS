@@ -137,7 +137,27 @@ class GstreamerMiraPlayer implements MiraPlayer {
   /// default pipeline, never into a custom one.
   /// [hardware] overrides the `/dev/video10` probe, so tests can exercise the
   /// Pi's pipelines on a machine that has no V4L2 decoder.
-  static String pipelineFor(Uri source, {String? format, bool? hardware}) {
+  /// The decoder element and parser for a codec, or null when the box has no
+  /// hardware path for it.
+  ///
+  /// HEVC goes through `v4l2slh265dec`, the stateless decoder on
+  /// `/dev/video19`, which decodes 1080p at 3% of a core - against 89% in
+  /// software. It only became reachable once GStreamer was taught the Pi's
+  /// SAND capture formats; see the patch under buildroot-external/patches.
+  static ({String parse, String dec})? _decoderFor(String? videoCodec) {
+    switch (videoCodec?.toLowerCase()) {
+      case 'h264':
+      case 'avc':
+        return (parse: 'h264parse', dec: 'v4l2h264dec capture-io-mode=dmabuf');
+      case 'hevc':
+      case 'h265':
+        return (parse: 'h265parse', dec: 'v4l2slh265dec');
+      default:
+        return null;
+    }
+  }
+
+  static String pipelineFor(Uri source, {String? format, bool? hardware, String? videoCodec}) {
     final String uri = source.toString().replaceAll('"', '%22');
     final bool useHardware = hardware ?? hasV4l2Decoder;
     final String chosenFormat =
@@ -150,7 +170,11 @@ class GstreamerMiraPlayer implements MiraPlayer {
     }
 
     final String? demux = useHardware ? _demuxFor(source) : null;
-    if (demux == null) {
+    // H.264 unless told otherwise: a transcode is always H.264, and that is
+    // what the DeviceProfile asks for when it cannot direct-play.
+    final ({String parse, String dec})? decoder =
+        _decoderFor(videoCodec ?? 'h264');
+    if (demux == null || decoder == null) {
       // No hardware decoder, or a container this pipeline does not know. The
       // software path plays it rather than failing outright.
       return 'uridecodebin uri="$uri" name="src" '
@@ -162,10 +186,15 @@ class GstreamerMiraPlayer implements MiraPlayer {
     // high-bitrate film does not quietly get a shorter queue than a low one.
     const String queue =
         'queue max-size-buffers=0 max-size-bytes=0 max-size-time=2000000000';
+    final bool hevc = decoder.parse == 'h265parse';
+    // The decoder's own output format is left to negotiation for HEVC: it
+    // only ever produces Broadcom's SAND layout, and naming a linear format
+    // here would simply fail to link.
+    final String videoCaps = hevc ? '' : 'video/x-raw,format=$chosenFormat ! ';
     return 'souphttpsrc location="$uri" retries=3 timeout=15 ! $demux '
-        'd. ! video/x-h264 ! $queue ! h264parse ! '
-        'v4l2h264dec capture-io-mode=dmabuf ! '
-        'video/x-raw,format=$chosenFormat ! appsink sync=true name="sink" '
+        'd. ! video/x-${hevc ? 'h265' : 'h264'} ! $queue ! ${decoder.parse} ! '
+        '${decoder.dec} ! '
+        '$videoCaps' 'appsink sync=true name="sink" '
         'd. ! audio/mpeg ! $queue ! aacparse ! avdec_aac ! '
         'audioconvert ! audioresample ! '
         'audio/x-raw,format=S16LE,channels=2,rate=48000 ! autoaudiosink';
@@ -227,12 +256,13 @@ class GstreamerMiraPlayer implements MiraPlayer {
   }
 
   @override
-  Future<void> open(Uri source, {Duration startAt = Duration.zero}) async {
+  Future<void> open(Uri source, {Duration startAt = Duration.zero, String? videoCodec}) async {
     await _release();
     _status.value = PlaybackStatus(state: PlaybackState.opening, position: startAt);
 
     final VideoPlayerController controller =
-        FlutterpiVideoPlayerController.withGstreamerPipeline(pipelineFor(source));
+        FlutterpiVideoPlayerController.withGstreamerPipeline(
+            pipelineFor(source, videoCodec: videoCodec));
     _controller = controller;
     controller.addListener(_onValue);
 

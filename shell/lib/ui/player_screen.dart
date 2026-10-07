@@ -171,7 +171,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
       if (!mounted) return;
       // setState, not a bare assignment: the header's "Direct play" line reads it.
       setState(() => _plan = plan);
-      await _player.open(plan.streamUrl, startAt: at);
+      await _player.open(
+        plan.streamUrl,
+        startAt: at,
+        // Only meaningful for a direct play: a transcode is always H.264.
+        videoCodec: plan.isDirectPlay ? _item.videoCodec : 'h264',
+      );
       if (!mounted) return;
       await _player.play();
       // Also after a restart for a new audio track: the server treats each

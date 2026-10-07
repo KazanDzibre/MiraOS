@@ -1,3 +1,5 @@
+import 'device_profile.dart';
+
 /// Jellyfin measures time in 100-nanosecond ticks.
 Duration durationFromTicks(Object? ticks) {
   if (ticks is! num) return Duration.zero;
@@ -182,7 +184,9 @@ class MediaItem {
     final String? codec = videoCodec?.toLowerCase();
     final int w = width ?? 0;
     final int h = height ?? 0;
-    if (codec != 'h264' && codec != 'avc') return false;
+    final bool hevcOk = JellyfinDeviceProfile.hevcDirectPlay &&
+        (codec == 'hevc' || codec == 'h265');
+    if (!hevcOk && codec != 'h264' && codec != 'avc') return false;
     if (w > 1920 || h > 1080) return false;
     final List<MediaTrack> audio = audioTracks;
     if (audio.isEmpty) return true;

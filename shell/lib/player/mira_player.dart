@@ -80,7 +80,11 @@ abstract interface class MiraPlayer {
 
   /// Prepare [source] and seek to [startAt] before the first frame, so resuming
   /// never shows the opening shot first.
-  Future<void> open(Uri source, {Duration startAt});
+  /// Opens [source]. [videoCodec] is the stream's codec as the server names
+  /// it ("h264", "hevc"), which a backend that pins hardware decoders needs
+  /// in order to pick one - the URL alone cannot say, since a direct-played
+  /// mkv looks the same either way.
+  Future<void> open(Uri source, {Duration startAt, String? videoCodec});
 
   Future<void> play();
   Future<void> pause();

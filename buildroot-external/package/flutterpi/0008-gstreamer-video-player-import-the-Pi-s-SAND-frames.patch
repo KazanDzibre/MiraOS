@@ -1,0 +1,206 @@
+From: Mira <noreply@anthropic.com>
+Date: 2026-10-07
+Subject: [PATCH] gstreamer video player: import the Pi's SAND frames
+
+The Raspberry Pi's HEVC decoder writes Broadcom's SAND layout - the image
+cut into 128-byte wide columns, luma and chroma stacked within each column -
+and never a linear one. Our patched v4l2codecs carries those frames as NV12
+(8-bit) or NV12_10LE32 (10-bit), because GStreamer has no video format for a
+column layout.
+
+Imported as linear, the picture comes out as green stripes. V3D can take it
+properly: v3d_screen.c advertises BROADCOM_SAND128 for NV12 and for P030, and
+blits SAND to a tiled copy on the GPU when the texture is sampled. All it
+needs is the right modifier, whose parameter the kernel treats as the column
+height (vc4_plane.c range-checks it as one).
+
+Three things were needed, each found by measurement on a Pi 4B:
+
+ - Spot a SAND frame. Its stride is the column height, which is smaller than
+   the image width - impossible for a linear buffer. The stride has to come
+   from the buffer's video meta, not the caps: caps describe an idealised
+   linear frame (stride 1920) while the meta carries what the driver really
+   reported (1560 on a 1920x1040 film, being 1040 luma rows plus 520 of
+   chroma). Reading the caps was what produced the green stripes.
+ - Import with DRM_FORMAT_MOD_BROADCOM_SAND128_COL_HEIGHT and the real
+   geometry: pitch is the 128-byte column width, and chroma begins where the
+   luma rows end in column zero.
+ - Map DRM_FORMAT_P030 back to NV12_10LE32, or the appsink advertises no
+   10-bit format at all and a Main 10 stream cannot negotiate - which is 70%
+   of this library.
+
+Verified on the box: Hair (HEVC 8-bit, 1920x1040) direct-played with a
+correct picture, decoding at a few percent of one core against 89% in
+software, with the server doing nothing at all.
+
+Signed-off-by: Mira <noreply@anthropic.com>
+---
+--- a/src/plugins/gstreamer_video_player/frame.c
++++ b/src/plugins/gstreamer_video_player/frame.c
+@@ -567,6 +567,59 @@
+ }
+ #endif
+ 
++
++/*
++ * Mira: the Raspberry Pi's HEVC decoder only ever writes Broadcom's SAND
++ * layout - the image cut into 128-byte wide columns rather than stored line
++ * by line - and GStreamer has no video format for it, so our patched
++ * v4l2codecs carries it as plain NV12 (8-bit) or NV12_10LE32 (10-bit).
++ *
++ * The giveaway is the stride. A linear frame's stride is at least its width
++ * in bytes; a SAND frame reports the *column height* there instead, which for
++ * 1080p is 1620 - being 1080 rows of luma and 540 of chroma stacked in each
++ * column. 1620 < 1920, which cannot happen for a linear buffer, so it is a
++ * safe test. Measured on the box: the driver reports bytesperline 1620 and
++ * sizeimage 3110400, and 15 columns of 128 bytes by 1620 rows is exactly
++ * 3110400.
++ *
++ * V3D can take this: v3d_screen.c advertises BROADCOM_SAND128 for NV12 and
++ * (for 10-bit) for P030, and blits it to a tiled copy on the GPU when the
++ * texture is used. All it needs is the right modifier, whose parameter the
++ * kernel treats as that column height (vc4_plane.c range-checks it as one).
++ */
++/*
++ * The stride has to come from the buffer's video meta, not from the caps.
++ * Caps describe an idealised linear frame - 1920 wide, stride 1920 - while
++ * the meta carries what the driver really reported, which for SAND is the
++ * column height (1560 on a 1920x1040 film, being 1040 luma rows plus 520 of
++ * chroma). Reading the caps instead makes every SAND frame look linear and
++ * the picture comes out as green stripes, which is how this was found.
++ */
++static uint32_t mira_frame_stride(const GstVideoInfo *info, GstVideoMeta *meta) {
++    if (meta != NULL && meta->n_planes > 0) {
++        return (uint32_t) meta->stride[0];
++    }
++    return (uint32_t) GST_VIDEO_INFO_PLANE_STRIDE(info, 0);
++}
++
++static bool mira_frame_is_sand(const GstVideoInfo *info, GstVideoMeta *meta) {
++    uint32_t stride = mira_frame_stride(info, meta);
++    int width = GST_VIDEO_INFO_WIDTH(info);
++
++    if (stride == 0 || width <= 0) {
++        return false;
++    }
++    return stride < (uint32_t) width;
++}
++
++static uint32_t mira_sand_col_height(const GstVideoInfo *info, GstVideoMeta *meta) {
++    return mira_frame_stride(info, meta);
++}
++
++static uint64_t mira_sand_modifier(const GstVideoInfo *info, GstVideoMeta *meta) {
++    return DRM_FORMAT_MOD_BROADCOM_SAND128_COL_HEIGHT(mira_sand_col_height(info, meta));
++}
++
+ static uint32_t drm_format_from_gst_info(const GstVideoInfo *info);
+ 
+ /*
+@@ -855,6 +908,11 @@
+         case GST_VIDEO_FORMAT_VUYA: return DRM_FORMAT_AYUV;
+ #endif
+         case GST_VIDEO_FORMAT_NV12: return DRM_FORMAT_NV12;
++        // Mira: what the Pi's HEVC decoder gives for 10-bit, carried as
++        // NV12_10LE32 by our v4l2codecs patch. P030 is the DRM name for the
++        // same packing, and the only format v3d exposes SAND128 for besides
++        // NV12.
++        case GST_VIDEO_FORMAT_NV12_10LE32: return DRM_FORMAT_P030;
+         case GST_VIDEO_FORMAT_NV21: return DRM_FORMAT_NV21;
+         case GST_VIDEO_FORMAT_NV16: return DRM_FORMAT_NV16;
+         case GST_VIDEO_FORMAT_NV61: return DRM_FORMAT_NV61;
+@@ -892,6 +950,11 @@
+             // case DRM_FORMAT_AYUV: return GST_VIDEO_FORMAT_VUYA;
+ #endif
+         case DRM_FORMAT_NV12: return GST_VIDEO_FORMAT_NV12;
++        // Mira: P030 is the Pi's 10-bit HEVC output. Without this the appsink
++        // advertises no 10-bit format at all and a Main 10 film cannot
++        // negotiate - which is 70% of this library. v3d exposes it only with
++        // the SAND128 modifier, and only as external_only.
++        case DRM_FORMAT_P030: return GST_VIDEO_FORMAT_NV12_10LE32;
+         case DRM_FORMAT_NV21: return GST_VIDEO_FORMAT_NV21;
+         case DRM_FORMAT_NV16: return GST_VIDEO_FORMAT_NV16;
+         case DRM_FORMAT_NV61: return GST_VIDEO_FORMAT_NV61;
+@@ -1023,18 +1086,36 @@
+         return NULL;
+     }
+ 
++    // Mira: a SAND frame is imported with its own modifier; everything else
++    // is linear as before.
++    GstVideoMeta *mira_meta = gst_buffer_get_video_meta(buffer);
++    bool is_sand = mira_frame_is_sand(info, mira_meta);
++    uint64_t wanted_modifier = is_sand ? mira_sand_modifier(info, mira_meta) : DRM_FORMAT_MOD_LINEAR;
++
+     bool external_only;
+     for_each_format_in_frame_interface(i, format, interface) {
+-        if (format->format == drm_format && format->modifier == DRM_FORMAT_MOD_LINEAR) {
++        if (format->format == drm_format && format->modifier == wanted_modifier) {
+             external_only = format->external_only;
+             goto format_supported;
+         }
+     }
+ 
++    // SAND is advertised by the driver without the column height baked in, so
++    // accept the bare modifier too and pass the height ourselves.
++    if (is_sand) {
++        for_each_format_in_frame_interface(i, format, interface) {
++            if (format->format == drm_format && format->modifier == DRM_FORMAT_MOD_BROADCOM_SAND128) {
++                external_only = format->external_only;
++                goto format_supported;
++            }
++        }
++    }
++
+     LOG_ERROR(
+-        "Video format is not supported by EGL: %" DRM_FOURCC_FORMAT " (modifier: %" PRIu64 ").\n",
++        "Video format is not supported by EGL: %" DRM_FOURCC_FORMAT " (modifier: 0x%" PRIx64 ", sand: %s).\n",
+         DRM_FOURCC_ARGS(drm_format),
+-        (uint64_t) DRM_FORMAT_MOD_LINEAR
++        (uint64_t) wanted_modifier,
++        is_sand ? "yes" : "no"
+     );
+     return NULL;
+ 
+@@ -1060,6 +1141,42 @@
+         goto fail_free_frame;
+     }
+ 
++    // Mira: a SAND frame's planes are not rows but columns. Each column is
++    // 128 bytes wide and `col_height` rows tall, luma first and chroma
++    // beneath it in the same column, so the pitch is the column width and
++    // the chroma plane begins where the luma rows end in column zero. The
++    // strides and offsets GStreamer computed describe a linear image that
++    // does not exist, so they are replaced here.
++    if (is_sand) {
++        uint32_t col_height = mira_sand_col_height(info, mira_meta);
++        uint64_t modifier = mira_sand_modifier(info, mira_meta);
++        uint32_t luma_height = (uint32_t) GST_VIDEO_INFO_HEIGHT(info);
++
++        for (int plane = 0; plane < n_planes; plane++) {
++            planes[plane].pitch = 128;
++            planes[plane].offset = (plane == 0) ? 0 : (size_t) 128 * luma_height;
++            planes[plane].has_modifier = true;
++            planes[plane].modifier = modifier;
++        }
++
++        static bool said = false;
++        if (!said) {
++            said = true;
++            LOG_ERROR(
++                "[mira sand] %" DRM_FOURCC_FORMAT " %dx%d, col height %u, planes %d, "
++                "chroma at %zu, modifier 0x%" PRIx64 ", external_only %s\n",
++                DRM_FOURCC_ARGS(drm_format),
++                width,
++                height,
++                col_height,
++                n_planes,
++                (size_t) planes[1].offset,
++                modifier,
++                external_only ? "yes" : "no"
++            );
++        }
++    }
++
+     // Start putting together the EGL attributes.
+     attr_index = 0;
+ 

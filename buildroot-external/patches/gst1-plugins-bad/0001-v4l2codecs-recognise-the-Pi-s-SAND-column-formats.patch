@@ -28,8 +28,8 @@ smaller change that makes the hardware reachable.
 Signed-off-by: Mira <noreply@anthropic.com>
 ---
 --- a/sys/v4l2codecs/gstv4l2format.c	2026-10-07 21:05:59.549411594 +0200
-+++ b/sys/v4l2codecs/gstv4l2format.c	2026-10-07 22:45:17.186246219 +0200
-@@ -31,6 +31,32 @@
++++ b/sys/v4l2codecs/gstv4l2format.c	2026-10-07 23:18:42.564397653 +0200
+@@ -31,7 +31,47 @@
    gint subsampling;
  };
  
@@ -60,9 +60,24 @@ Signed-off-by: Mira <noreply@anthropic.com>
 +#endif
 +
  static struct FormatEntry format_map[] = {
++  /*
++   * The single-plane SAND formats come first on purpose. The reverse lookup
++   * (GstVideoFormat -> V4L2 pixelformat) takes the first match, and asking a
++   * decoder for plain NV12 lets it answer with the *two-plane* SAND variant,
++   * whose reported geometry is indistinguishable from a linear frame - stride
++   * 1920 on a 1920-wide image. The single-plane one reports the column height
++   * (1620 at 1080p) in that field, which is impossible for a linear buffer and
++   * is therefore how the importer downstream can tell the layout apart.
++   *
++   * Harmless on devices that do not speak SAND: they substitute their own
++   * format in VIDIOC_S_FMT and the code below looks up whatever came back.
++   */
++  {V4L2_PIX_FMT_NV12_COL128, 1, GST_VIDEO_FORMAT_NV12, 8, 420},
++  {V4L2_PIX_FMT_NV12_10_COL128, 1, GST_VIDEO_FORMAT_NV12_10LE32, 10, 420},
    {V4L2_PIX_FMT_NV12, 1, GST_VIDEO_FORMAT_NV12, 8, 420},
    {V4L2_PIX_FMT_YUYV, 1, GST_VIDEO_FORMAT_YUY2, 8, 422},
-@@ -42,6 +68,32 @@
+   {V4L2_PIX_FMT_SUNXI_TILED_NV12, 1, GST_VIDEO_FORMAT_NV12_32L32, 8, 422},
+@@ -42,6 +82,30 @@
    {V4L2_PIX_FMT_NV15_4L4, 1, GST_VIDEO_FORMAT_NV12_10LE40_4L4, 10, 420},
    {V4L2_PIX_FMT_MT2110T, 2, GST_VIDEO_FORMAT_MT2110T, 10, 420},
    {V4L2_PIX_FMT_MT2110R, 2, GST_VIDEO_FORMAT_MT2110R, 10, 420},
@@ -88,15 +103,42 @@ Signed-off-by: Mira <noreply@anthropic.com>
 +   * Size and stride come from the driver's own sizeimage/bytesperline below,
 +   * so the wrong linear geometry is never used to size a buffer.
 +   */
-+  {V4L2_PIX_FMT_NV12_COL128, 1, GST_VIDEO_FORMAT_NV12, 8, 420},
-+  {V4L2_PIX_FMT_NV12_10_COL128, 1, GST_VIDEO_FORMAT_NV12_10LE32, 10, 420},
 +  {V4L2_PIX_FMT_NV12MT_COL128, 2, GST_VIDEO_FORMAT_NV12, 8, 420},
 +  {V4L2_PIX_FMT_NV12MT_10_COL128, 2, GST_VIDEO_FORMAT_NV12_10LE32, 10, 420},
    {0,}
  };
  
+@@ -61,6 +125,28 @@
+   return ret;
+ }
+ 
++/*
++ * How many V4L2 planes a pixelformat uses.
++ *
++ * Needed because VIDIOC_S_FMT is given a struct filled in by a previous
++ * VIDIOC_G_FMT: changing only the pixelformat leaves the old plane count
++ * behind, and the Pi's decoder then answers with its two-plane SAND variant
++ * instead of the single-plane one that was asked for. The two differ in what
++ * they report as the stride, which is the only way anything downstream can
++ * tell a column layout from a linear one.
++ */
++gboolean
++gst_v4l2_format_num_planes (guint32 pix_fmt, gint * out_num_planes)
++{
++  struct FormatEntry *entry = lookup_v4l2_fmt (pix_fmt);
++
++  if (!entry)
++    return FALSE;
++
++  *out_num_planes = entry->num_planes;
++  return TRUE;
++}
++
+ static struct FormatEntry *
+ lookup_gst_fmt (GstVideoFormat gst_fmt)
+ {
 --- a/sys/v4l2codecs/gstv4l2format.h	2026-10-07 21:05:59.550029452 +0200
-+++ b/sys/v4l2codecs/gstv4l2format.h	2026-10-07 21:05:59.564656305 +0200
++++ b/sys/v4l2codecs/gstv4l2format.h	2026-10-07 23:18:42.564496393 +0200
 @@ -25,7 +25,7 @@
  #include "linux/videodev2.h"
  
@@ -106,3 +148,49 @@ Signed-off-by: Mira <noreply@anthropic.com>
    "NV12, YUY2, NV12_4L4, NV12_32L32, NV12_16L32S, I420" \
    "}"
  
+@@ -38,4 +38,7 @@
+ gboolean   gst_v4l2_format_from_video_format (GstVideoFormat format,
+                                               guint32 * out_pix_fmt);
+ 
++gboolean   gst_v4l2_format_num_planes        (guint32 pix_fmt,
++                                              gint * out_num_planes);
++
+ #endif /* __GST_V4L2_FORMAT_H__ */
+--- a/sys/v4l2codecs/gstv4l2decoder.c	2026-10-07 23:18:42.535897219 +0200
++++ b/sys/v4l2codecs/gstv4l2decoder.c	2026-10-07 23:18:42.564652448 +0200
+@@ -579,9 +579,20 @@
+   }
+ 
+   if (pix_fmt != fmt.fmt.pix_mp.pixelformat) {
++    gint num_planes;
++
+     GST_WARNING_OBJECT (self, "Trying to use peer format: %s",
+         gst_video_format_to_string (format));
+     fmt.fmt.pix_mp.pixelformat = pix_fmt;
++    /*
++     * ...and the plane count that goes with it. The struct still describes
++     * the previous format, and a driver offering both a single-plane and a
++     * two-plane flavour of the same layout - as the Pi's HEVC decoder does -
++     * will hand back the one matching the stale count.
++     */
++    if (V4L2_TYPE_IS_MULTIPLANAR (fmt.type)
++        && gst_v4l2_format_num_planes (pix_fmt, &num_planes))
++      fmt.fmt.pix_mp.num_planes = num_planes;
+ 
+     ret = ioctl (self->video_fd, VIDIOC_S_FMT, &fmt);
+     if (ret < 0) {
+@@ -590,6 +601,14 @@
+     }
+   }
+ 
++  GST_WARNING_OBJECT (self,
++      "Selected V4L2 capture format %" GST_FOURCC_FORMAT
++      " %ux%u planes %u stride0 %u sizeimage0 %u",
++      GST_FOURCC_ARGS (fmt.fmt.pix_mp.pixelformat), fmt.fmt.pix_mp.width,
++      fmt.fmt.pix_mp.height, fmt.fmt.pix_mp.num_planes,
++      fmt.fmt.pix_mp.plane_fmt[0].bytesperline,
++      fmt.fmt.pix_mp.plane_fmt[0].sizeimage);
++
+   if (!gst_v4l2_format_to_video_info (&fmt, vinfo)) {
+     GST_ERROR_OBJECT (self, "Unsupported V4L2 pixelformat %" GST_FOURCC_FORMAT,
+         GST_FOURCC_ARGS (fmt.fmt.pix_mp.pixelformat));

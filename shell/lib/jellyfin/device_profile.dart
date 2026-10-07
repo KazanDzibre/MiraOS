@@ -52,6 +52,8 @@
 /// deliberate later feature.
 library;
 
+import 'dart:io';
+
 abstract final class JellyfinDeviceProfile {
   /// What the box can actually decode and play out, and nothing more.
   ///
@@ -136,9 +138,22 @@ abstract final class JellyfinDeviceProfile {
   /// server CPU, bandwidth and decode work on the Pi.
   static const int _maxTranscodeBitrate = 12000000;
 
+  /// Whether to ask the server for HEVC untouched.
+  ///
+  /// Off by default while the SAND display path is being proven: declaring it
+  /// before the picture is right would break 82% of the library, which is far
+  /// worse than a transcode. `MIRA_HEVC=1` turns it on for a live test, and
+  /// this becomes the default once a 10-bit film plays correctly end to end.
+  static bool get hevcDirectPlay {
+    final String? on = Platform.environment['MIRA_HEVC'];
+    return on != null && on.isNotEmpty && on != '0';
+  }
+
   static Map<String, Object?> build({
     int maxStreamingBitrate = defaultMaxStreamingBitrate,
+    bool? hevc,
   }) {
+    final bool withHevc = hevc ?? hevcDirectPlay;
     return <String, Object?>{
       'Name': 'Mira (Raspberry Pi 4)',
       'MaxStreamingBitrate': maxStreamingBitrate,
@@ -154,7 +169,7 @@ abstract final class JellyfinDeviceProfile {
         <String, Object?>{
           'Type': 'Video',
           'Container': 'mp4,m4v,mov,mkv',
-          'VideoCodec': 'h264',
+          'VideoCodec': withHevc ? 'h264,hevc' : 'h264',
           'AudioCodec': _directPlayAudio,
         },
         <String, Object?>{
@@ -207,16 +222,22 @@ abstract final class JellyfinDeviceProfile {
             _cond('NotEquals', 'IsAnamorphic', 'true'),
           ],
         },
-        // HEVC deliberately absent - see the library docs. To restore direct
-        // play once v4l2slh265dec is reachable, add back:
-        //
-        //   {'Type': 'Video', 'Codec': 'hevc', 'Conditions': [
-        //      Width <= 3840, Height <= 2160, VideoLevel <= 153,
-        //      VideoBitDepth <= 10, VideoProfile in main|main 10,
-        //      IsAnamorphic != true]}
-        //
-        // ...and add 'hevc' to the video DirectPlayProfile's VideoCodec, and
-        // an hevc branch to `GstreamerMiraPlayer.pipelineFor`.
+        // HEVC, when asked for. The decoder is rpivid on /dev/video19, which
+        // does Main and Main 10 to 4K - but the UI plane is 1080p and the
+        // library has nothing above it, so the envelope stays at 1080p until
+        // there is a reason to widen it.
+        if (withHevc)
+          <String, Object?>{
+            'Type': 'Video',
+            'Codec': 'hevc',
+            'Conditions': <Map<String, Object?>>[
+              _cond('LessThanEqual', 'Width', '1920'),
+              _cond('LessThanEqual', 'Height', '1080'),
+              _cond('LessThanEqual', 'VideoBitDepth', '10'),
+              _cond('EqualsAny', 'VideoProfile', 'main|main 10'),
+              _cond('NotEquals', 'IsAnamorphic', 'true'),
+            ],
+          },
       ],
 
       'SubtitleProfiles': <Map<String, Object?>>[

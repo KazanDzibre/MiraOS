@@ -23,7 +23,7 @@ class FakeMiraPlayer implements MiraPlayer {
   ValueListenable<PlaybackStatus> get status => _status;
 
   @override
-  Future<void> open(Uri source, {Duration startAt = Duration.zero}) async {
+  Future<void> open(Uri source, {Duration startAt = Duration.zero, String? videoCodec}) async {
     _status.value = PlaybackStatus(
       state: PlaybackState.opening,
       position: startAt,
