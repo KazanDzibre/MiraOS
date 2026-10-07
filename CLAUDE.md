@@ -94,29 +94,50 @@ on pie") after HEVC titles would not play at all on the box.
 
 Why, in order of how much each matters:
 
-- **HEVC hardware decode is unreachable in this image**, and the reason is a
-  *format* gap, not the enumeration bug an earlier draft of this file claimed.
-  Measured on the box 2026-10-06, with a cross-compiled `VIDIOC_ENUM_FMT`
-  probe and `GST_DEBUG=v4l2codecs*:7`:
+- **HEVC hardware decode: the blocker is understood, and half the fix is in.**
+  Measured on the box with a cross-compiled `VIDIOC_ENUM_FMT` probe and
+  `GST_DEBUG=v4l2codecs*:7`, then traced through Mesa and flutter-pi
+  (2026-10-06/07):
 
   - The plugin finds everything. `/dev/media0-3` exist, `/dev/video19` is
     `rpi-hevc-dec`, and the log reads *Found decoder device rpi-hevc-dec-proc*
-    -> *Registering rpi-hevc-dec-proc as H265 Decoder*.
-  - Then: *Not registering H265 decoder since it produces no supported
-    format*, after *Probed caps: EMPTY*.
+    -> *Registering rpi-hevc-dec-proc as H265 Decoder* -> *Not registering
+    H265 decoder since it produces no supported format*, after
+    *Probed caps: EMPTY*.
   - Because the decoder's capture queue offers **only Broadcom's SAND column
-    formats**: `NC12` (Y/CbCr 4:2:0, 128-byte columns) and `NC30` (its 10-bit
-    twin). No plain NV12, in any configuration, before or after setting the
-    coded format. `/dev/video10`, the H.264 decoder, offers YU12/YV12/**NV12**
-    /NV21/RGBP/AB24 - which is exactly why H.264 works and HEVC does not.
+    formats**: `NC12` and 10-bit `NC30`. No plain NV12, in any configuration.
+    `/dev/video10` (H.264) does offer NV12 - which is exactly why that path
+    works and this one does not.
+  - **But the GPU can sample SAND directly.** `v3d_screen.c` advertises
+    `DRM_FORMAT_MOD_BROADCOM_SAND128` for `PIPE_FORMAT_NV12`, and for
+    `PIPE_FORMAT_P030` (the 10-bit one) it advertises SAND128 *and nothing
+    else*, marked `external_only`. `v3d_resource.c` imports it, taking the
+    column stride from the modifier's parameter. So no conversion pass is
+    needed: decoder -> dmabuf -> EGLImage with the right modifier -> sampled.
 
-  So HEVC direct play needs the SAND layout turned into something the GPU can
-  import: teach GStreamer `NC12`/`NC30` (upstream has no mapping), or pass the
-  frames through the Pi's ISP (`bcm2835-isp`) as a second M2M stage, or drive
-  the decoder with the Pi's own ffmpeg fork, which already handles SAND. Each
-  is a project, and flutter-pi's appsink would still need to accept the result.
-  Budget accordingly; this is not a two-line edit, whatever the commented HEVC
-  block in `device_profile.dart` suggests.
+  **Done:** `patches/gst1-plugins-bad/0001-v4l2codecs-recognise-the-Pi-s-SAND-column-formats.patch`
+  maps NC12 to NV12 and NC30 to NV12_10LE32 so the decoder registers at all.
+  Size and stride already come from the driver's `sizeimage`/`bytesperline`,
+  so the linear geometry is never used to size a buffer. `BR2_GLOBAL_PATCH_DIR`
+  now points at `buildroot-external/patches`.
+
+  **Not done, and the order to do it in:**
+  1. Prove the decoder actually decodes: `v4l2slh265dec` to a `fakesink` on
+     the box, watching CPU. No display needed, no shell changes - the pipeline
+     goes in through `MIRA_PIPELINE`.
+  2. Measure the SAND geometry with `sandprobe.c` (built, aarch64): the
+     modifier carries a column-height parameter and the importer needs it.
+  3. Teach flutter-pi the modifier. It already enumerates EGL's
+     format+modifier pairs (`frame.c:153`) and then hardcodes
+     `DRM_FORMAT_MOD_LINEAR` everywhere after (lines ~300, 807, 833, and the
+     match at 1028). With LINEAR the picture will decode and come out
+     scrambled into columns - that is the symptom that says step 3 is the one
+     left.
+  4. 10-bit needs `external_only` sampling (`samplerExternalOES`), which the
+     texture path may or may not already do.
+  5. Only then widen the DeviceProfile. Until it is proven, HEVC stays
+     transcoded - a scrambled or black picture on 82% of the library is far
+     worse than a transcode.
 
   It matters because **82% of this library is HEVC** (298 of 364), and
   **70% is 10-bit Main 10** (256 titles) - so transcoding also costs the

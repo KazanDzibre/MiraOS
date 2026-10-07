@@ -56,7 +56,21 @@ section of CLAUDE.md was designed around but never built.
 - [ ] **USB SSD boot** — `BOOT_ORDER=0xf14` via `rpi-eeprom-config`, SD kept as
       rescue.
 
-## 3. HEVC direct play — the one real blocker left
+## 3. HEVC direct play — started 2026-10-07, decoder patch in
+
+Full detail in CLAUDE.md. The short version: the Pi's HEVC decoder only emits
+Broadcom SAND, GStreamer could not describe it, **but Mesa can sample it** -
+so this is a plumbing job, not a conversion job.
+
+- [x] Patch v4l2codecs so the decoder registers (`patches/gst1-plugins-bad/`).
+- [ ] Prove it decodes: `v4l2slh265dec` to `fakesink` via `MIRA_PIPELINE`.
+- [ ] Run `sandprobe` for the column geometry the DRM modifier needs.
+- [ ] Teach flutter-pi to import with `DRM_FORMAT_MOD_BROADCOM_SAND128`
+      instead of hardcoding LINEAR.
+- [ ] 10-bit: external-only sampling in the texture path.
+- [ ] Only then put HEVC back in the DeviceProfile.
+
+### Original note
 
 Worth its own section because it is a single upstream bug standing between this
 box and never transcoding again. 82% of the library is HEVC.

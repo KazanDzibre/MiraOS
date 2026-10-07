@@ -128,6 +128,11 @@ BR2_PACKAGE_GST1_PLUGINS_GOOD_PLUGIN_V4L2=y
 # hardware decoders are simply absent from GStreamer and everything decodes on
 # the CPU (seen on the box: gst-inspect listed no v4l2*dec at all).
 BR2_PACKAGE_GST1_PLUGINS_GOOD_PLUGIN_V4L2_PROBE=y
+# Patches we carry for upstream packages live in the external tree, next to
+# our own packages. Currently: teaching GStreamer's v4l2codecs about the Pi's
+# SAND column formats, without which the Pi's HEVC decoder is invisible.
+BR2_GLOBAL_PATCH_DIR="$(BR2_EXTERNAL_MIRA_PATH)/patches"
+
 BR2_PACKAGE_GST1_PLUGINS_BAD=y
 BR2_PACKAGE_GST1_PLUGINS_BAD_PLUGIN_VIDEOPARSERS=y
 BR2_PACKAGE_GST1_PLUGINS_BAD_PLUGIN_HLS=y
