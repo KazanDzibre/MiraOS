@@ -194,7 +194,9 @@ class MediaItem {
     final MediaTrack track =
         audio.firstWhere((MediaTrack t) => t.isDefault, orElse: () => audio.first);
     final String? audioCodec = track.codec?.toLowerCase();
-    return audioCodec == null || audioCodec == 'aac';
+    // Keep in step with JellyfinDeviceProfile's direct-play audio list.
+    const Set<String> playable = <String>{'aac', 'ac3', 'eac3', 'dts', 'dca'};
+    return audioCodec == null || playable.contains(audioCodec);
   }
 
   static MediaItem fromJson(Map<String, Object?> json) {

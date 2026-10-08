@@ -1,0 +1,57 @@
+#!/bin/sh
+#
+# Set the clock before anything needs TLS.
+#
+# The Pi has no battery-backed clock: every boot begins at 1 January 1970, and
+# at that date every certificate is "not yet valid", so TLS fails outright.
+# NetBird is the box's only TLS user and it failed silently - the daemon sat
+# in "Connecting" with "failed connecting to Management Service", the shell
+# never got a login URL, and the sign-in page showed an empty square where the
+# QR code belongs. Setting the clock turned it to "NeedsLogin" immediately.
+#
+# Two steps on purpose. A one-shot sets the clock now, because the services
+# started after this one need it right the first time. Then a daemon stays to
+# keep it there, since nothing else will.
+#
+# The wait is bounded: a box with no internet must still finish booting and
+# show its library, which is on the LAN and needs no clock at all.
+
+NTP_SERVERS="-p 0.pool.ntp.org -p 1.pool.ntp.org -p 2.pool.ntp.org"
+WAIT_SECONDS=10
+
+start() {
+	# 2020 or later means a real date; 1970 means the clock was never set.
+	if [ "$(date -u +%Y)" -ge 2020 ]; then
+		printf 'Clock: already set (%s)\n' "$(date -u)"
+	else
+		printf 'Clock: asking the network... '
+		# -q exits once it has stepped the clock; backgrounded so a box with
+		# no route out does not hold the boot open.
+		/usr/sbin/ntpd -n -q ${NTP_SERVERS} >/dev/null 2>&1 &
+		pid=$!
+		waited=0
+		while [ "${waited}" -lt "${WAIT_SECONDS}" ]; do
+			kill -0 "${pid}" 2>/dev/null || break
+			[ "$(date -u +%Y)" -ge 2020 ] && break
+			sleep 1
+			waited=$((waited + 1))
+		done
+		if [ "$(date -u +%Y)" -ge 2020 ]; then
+			printf 'set to %s\n' "$(date -u)"
+		else
+			kill "${pid}" 2>/dev/null
+			printf 'no answer, carrying on at %s\n' "$(date -u)"
+			printf 'Clock: TLS will fail until this is set - NetBird cannot sign in\n'
+		fi
+	fi
+
+	# Keep it right for the rest of the session.
+	/usr/sbin/ntpd ${NTP_SERVERS} >/dev/null 2>&1 &
+}
+
+case "$1" in
+	start) start ;;
+	stop) killall ntpd 2>/dev/null ;;
+	restart|reload) "$0" stop; "$0" start ;;
+	*) echo "Usage: $0 {start|stop|restart}"; exit 1 ;;
+esac

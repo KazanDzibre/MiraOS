@@ -11,3 +11,15 @@
 # CONFIG_LSMOD is not set
 # CONFIG_MODINFO is not set
 # CONFIG_DEPMOD is not set
+
+# ...and one to put in: an NTP client.
+#
+# A Pi has no battery-backed clock, so every boot starts at 1 January 1970,
+# and TLS then rejects every certificate as "not yet valid". NetBird was the
+# casualty: it could never reach api.netbird.io, so the sign-in page had no
+# login URL and therefore no QR code to show (found 2026-10-08). Jellyfin and
+# Seerr are plain HTTP on the LAN, which is why nothing else complained.
+CONFIG_NTPD=y
+CONFIG_FEATURE_NTPD_SERVER=n
+CONFIG_FEATURE_NTPD_CONF=n
+CONFIG_FEATURE_NTP_AUTH=n

@@ -37,19 +37,32 @@
 /// value change available once the `v4l2codecs` enumeration bug is fixed; the
 /// HEVC block is kept below, commented, so that is a two-line change.
 ///
-/// ## Audio is AAC only, also deliberately
+/// ## Audio: everything the box can decode (2026-10-08)
 ///
-/// AC3, E-AC3 and DTS are *not* declared, even though a TV would happily
-/// decode them, because nothing on this box can pass them through: vc4-hdmi
-/// via ALSA's `default` device accepts 48 kHz S16LE stereo and refuses
-/// everything else with -EINVAL, so the shell's pipeline downmixes to stereo
-/// anyway. Declaring them would mean shipping AC3/DTS decoders and parsers to
-/// produce a stereo mix the server can make for free - and the server's
-/// downmix is the better one, because it folds the centre channel in with
-/// proper gains. A film with AC3 audio and H.264 video is remuxed rather than
-/// re-encoded: the server copies the video stream and only converts the audio,
-/// which is cheap. Real HDMI passthrough would need the IEC958 device and is a
-/// deliberate later feature.
+/// This list was AAC alone, on the reasoning that the box downmixes to stereo
+/// anyway so the server may as well do it. That was wrong in an expensive
+/// way: `MaxStreamingBitrate` and the codec rules are evaluated *together*,
+/// so an HEVC film with E-AC3 sound was re-encoded **in full, video and all**,
+/// purely because of its audio track. Gladiator was the example - 10-bit HEVC
+/// re-encoded to 8-bit H.264 because of a sound format the box can decode
+/// perfectly well.
+///
+/// So the box now declares what it has actually been played with: AAC, AC3,
+/// E-AC3 and DTS, each tested against a real file on the hardware. Audio
+/// decoding is a rounding error next to video, and it keeps the picture
+/// untouched.
+///
+/// Deliberately absent, and each for its own measured reason: TrueHD (one
+/// file, and a lossless 7.1 stream is not worth the risk on an A72), FLAC
+/// (the one film here fails inside matroskademux - "reading large blocks" -
+/// before audio is reached), Opus (its only file is AV1 video, which cannot
+/// direct play regardless) and ALAC (no titles). All four transcode exactly
+/// as they did before.
+///
+/// The downmix stays ours: vc4-hdmi via ALSA's `default` takes 48 kHz S16LE
+/// stereo and refuses everything else, and `audioconvert` folds the centre
+/// channel in with proper gains. Real HDMI passthrough would need the IEC958
+/// device and is a deliberate later feature.
 library;
 
 import 'dart:io';
@@ -65,7 +78,7 @@ abstract final class JellyfinDeviceProfile {
   /// rather than a parser chosen per track, and this library has 298 AAC
   /// tracks and no MP3 ones at all. A film with MP3 audio would be remuxed
   /// with its video copied, which costs the server almost nothing.
-  static const String _directPlayAudio = 'aac';
+  static const String _directPlayAudio = 'aac,ac3,eac3,dts';
 
   /// Builds the profile.
   ///

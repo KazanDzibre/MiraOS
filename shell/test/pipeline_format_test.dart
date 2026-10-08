@@ -84,6 +84,59 @@ void main() {
       expect(p, contains('audio/x-raw,format=S16LE,channels=2,rate=48000'));
     });
 
+    // Each of these is a film the server used to re-encode in full - video
+    // and all - purely because of its audio track.
+    test('picks the decoder for each audio codec the box has', () {
+      // No parsers but AAC's: ac3parse in front of avdec_eac3 makes the
+      // branch refuse to negotiate, measured on the box against a real file.
+      const Map<String, String> expected = <String, String>{
+        'ac3': 'audio/x-ac3 ! queue max-size-buffers=0 max-size-bytes=0 max-size-time=2000000000 ! avdec_ac3',
+        'eac3': 'audio/x-eac3 ! queue max-size-buffers=0 max-size-bytes=0 max-size-time=2000000000 ! avdec_eac3',
+        'dts': 'audio/x-dts ! queue max-size-buffers=0 max-size-bytes=0 max-size-time=2000000000 ! avdec_dca',
+      };
+      expected.forEach((String codec, String chain) {
+        final String p = GstreamerMiraPlayer.pipelineFor(
+            Uri.parse('http://s/Videos/1/stream.mkv'),
+            hardware: true,
+            videoCodec: 'hevc',
+            audioCodec: codec);
+        expect(p, contains(chain), reason: codec);
+        // Whatever the codec, it still arrives as 48 kHz stereo: vc4-hdmi
+        // takes nothing else.
+        expect(p, contains('audio/x-raw,format=S16LE,channels=2,rate=48000'),
+            reason: codec);
+      });
+    });
+
+    test('AAC keeps its parser, because a transcode arrives as ADTS in TS', () {
+      final String p = GstreamerMiraPlayer.pipelineFor(
+          Uri.parse('http://s/videos/1/master.m3u8'),
+          hardware: true,
+          audioCodec: 'aac');
+      expect(p, contains('aacparse ! avdec_aac'));
+    });
+
+    test('HEVC uses the stateless decoder and names no output format', () {
+      // Its only output is Broadcom SAND; naming a linear format would fail
+      // to link.
+      final String p = GstreamerMiraPlayer.pipelineFor(
+          Uri.parse('http://s/Videos/1/stream.mkv'),
+          hardware: true,
+          videoCodec: 'hevc',
+          audioCodec: 'aac');
+      expect(p, contains('h265parse ! v4l2slh265dec'));
+      expect(p, isNot(contains('v4l2h264dec')));
+    });
+
+    test('an audio codec the box cannot decode falls back to software', () {
+      final String p = GstreamerMiraPlayer.pipelineFor(
+          Uri.parse('http://s/Videos/1/stream.mkv'),
+          hardware: true,
+          audioCodec: 'flac');
+      expect(p, contains('uridecodebin'),
+          reason: 'better to play it badly than to build a pipeline that cannot link');
+    });
+
     test('falls back to software for a container it cannot demux', () {
       // Should not happen - the DeviceProfile only permits mp4/mkv/HLS - but
       // playing badly beats not playing.

@@ -178,8 +178,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
       await _player.open(
         plan.streamUrl,
         startAt: at,
-        // Only meaningful for a direct play: a transcode is always H.264.
+        // Only meaningful for a direct play: a transcode is always H.264 and
+        // AAC. For a direct play it is whichever audio track will be heard -
+        // the chosen one, or the file's default.
         videoCodec: plan.isDirectPlay ? _item.videoCodec : 'h264',
+        audioCodec: plan.isDirectPlay ? _playingAudioCodec : 'aac',
       );
       if (!mounted) return;
       await _player.play();
@@ -299,6 +302,17 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _offsetSaveTimer = Timer(const Duration(seconds: 2), () {
       widget.source.saveTracks(_item, _choice).catchError((Object _) {});
     });
+  }
+
+  /// The codec of the track that will actually be heard.
+  String? get _playingAudioCodec {
+    final MediaTrack? chosen = _choice.audio;
+    if (chosen != null) return chosen.codec;
+    final List<MediaTrack> tracks = _item.audioTracks;
+    if (tracks.isEmpty) return null;
+    return tracks
+        .firstWhere((MediaTrack t) => t.isDefault, orElse: () => tracks.first)
+        .codec;
   }
 
   void _reportProgress() {

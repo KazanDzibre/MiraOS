@@ -27,6 +27,15 @@ export MIRA_PLATFORM=flutter-pi
 
 # GStreamer warnings and errors, not just flutter-pi's one-line summary: a film
 # that never starts otherwise leaves nothing to go on.
+# The house is in Belgrade, and a box with no locale says so on every boot:
+# "The system has no configured locale", and xkbcommon falls back to C. The
+# locales are generated into the image (BR2_GENERATE_LOCALE) and the timezone
+# is Europe/Belgrade, so the clock in the top bar reads local time rather than
+# UTC.
+export LANG="${LANG:-sr_RS.UTF-8}"
+export LC_ALL="${LC_ALL:-sr_RS.UTF-8}"
+export TZ="${TZ:-Europe/Belgrade}"
+
 export GST_DEBUG="${GST_DEBUG:-2}"
 
 # Prefer the Pi's hardware decoders, explicitly.

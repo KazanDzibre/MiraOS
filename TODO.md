@@ -208,15 +208,47 @@ Still optional, and measured:
       a fix.
 - [ ] Five stale `probe*` sessions in the dashboard from testing; they expire.
 
-## 9. Next: audio codecs (agreed for 2026-10-08)
+## 9. Audio codecs — done 2026-10-08
 
-HEVC direct play now works, so the remaining transcodes are mostly about
-*audio*: the profile takes AAC only, so an HEVC film with E-AC3 or DTS is
-re-encoded whole - Gladiator among them. The box already has `avdec_ac3`,
-`avdec_eac3` and the parsers from audioparsers, so this is a profile entry
-plus a codec-aware audio branch in `pipelineFor`, worth roughly fifty films.
+AAC, AC3, E-AC3 and DTS now direct-play, each tested against a real file.
+Direct-play coverage went from **301 of 364 titles to 356**; what is left is
+one AV1 file, one TrueHD, one FLAC and one Opus.
 
-## 10. Rough edges
+Two things found doing it, both worth remembering:
+
+- **`ac3parse` in front of `avdec_eac3` breaks the branch.** It refuses to
+  negotiate and playback dies with "Internal data stream error"; the bare
+  decoder plays the same file perfectly. AC3 and DTS work either way, so none
+  of them get a parser. AAC keeps `aacparse` because a transcode arrives as
+  ADTS inside MPEG-TS and does need framing.
+- **A multi-track file plays whichever audio pad matches the caps first.** The
+  pipeline selects by caps, not by index, so on a film with several tracks in
+  the same codec the choice in the subtitles & audio sheet is ignored for
+  direct play. It worked before only because the server remuxed. Needs the
+  demuxer pad selected by index (`matroskademux`'s pads are `audio_0`,
+  `audio_1`, ...) and is the next audio job.
+
+## 10. Clock and locale — done 2026-10-08
+
+The Pi has no battery-backed clock, so every boot began at 1 January 1970.
+TLS then rejects every certificate as "not yet valid", which is why **NetBird
+could never sign in and the QR code never appeared** - the daemon sat in
+"Connecting" with "failed connecting to Management Service". Setting the clock
+by hand turned it to "NeedsLogin" immediately. Jellyfin and Seerr are plain
+HTTP on the LAN, which is why nothing else ever complained.
+
+Fixed with busybox `ntpd` and `S42time`, which runs after the network and
+before NetBird, waits up to ten seconds for a one-shot to step the clock and
+then leaves a daemon to keep it there. A box with no internet still boots and
+plays, since the library is on the LAN and needs no clock. Verified on the
+hardware: a deliberately wrong clock was stepped 844,808,114 seconds to the
+right time.
+
+The image also now carries **Europe/Belgrade** and `sr_RS.UTF-8`, so the top
+bar reads local time rather than UTC and the console stops printing "The
+system has no configured locale" on every boot.
+
+## 11. Rough edges
 
 Small, visible, none blocking.
 
@@ -234,7 +266,7 @@ Small, visible, none blocking.
 - [ ] 4K video mode-switching (UI stays 1080p). Less urgent now that everything
       arrives as 1080p H.264.
 
-## 11. Deferred on purpose — do not drift into these
+## 12. Deferred on purpose — do not drift into these
 
 - **YouTube** and any second *graphical* process. It forks the architecture
   (DRM master), which is why v1 stops where it does. See *The v2 fork*.

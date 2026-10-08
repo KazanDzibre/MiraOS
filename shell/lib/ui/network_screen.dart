@@ -246,6 +246,15 @@ class _NetbirdSignInScreenState extends State<NetbirdSignInScreen> {
   StreamSubscription<LoginStep>? _sub;
   LoginCode? _code;
   String? _error;
+
+  /// Set when NetBird has not produced a sign-in code in a reasonable time.
+  ///
+  /// It never reports an error in this case - `up` simply sits there - so
+  /// without this the page shows "Asking NetBird for a sign-in code" and an
+  /// empty white square for ever, which is what it did when the box's clock
+  /// was wrong (2026-10-08).
+  bool _stalled = false;
+  Timer? _stallTimer;
   bool _done = false;
 
   @override
@@ -258,6 +267,7 @@ class _NetbirdSignInScreenState extends State<NetbirdSignInScreen> {
   void dispose() {
     // Leaving the screen abandons the attempt; NetBird stops waiting for it.
     _sub?.cancel();
+    _stallTimer?.cancel();
     super.dispose();
   }
 
@@ -265,18 +275,48 @@ class _NetbirdSignInScreenState extends State<NetbirdSignInScreen> {
     setState(() {
       _code = null;
       _error = null;
+      _stalled = false;
     });
     _listen();
   }
 
+  /// Why a sign-in might be going nowhere, in the order worth checking.
+  ///
+  /// The clock comes first because it is the one failure with no visible
+  /// symptom of its own: a Pi has no battery-backed clock, so until something
+  /// sets the time every certificate is "not yet valid" and every TLS
+  /// connection fails - including NetBird's to its own service.
+  String get _stalledReason {
+    if (miraNow().year < 2020) {
+      return "This box's clock is wrong (it says ${miraNow().year}), so secure "
+          'connections fail and NetBird cannot reach its sign-in service. It '
+          'sets itself from the network a few seconds after booting - if this '
+          'persists, the box has no route to the internet.';
+    }
+    return 'NetBird is not answering with a sign-in code. Check that this box '
+        'can reach the internet, then try again.';
+  }
+
   void _listen() {
     _sub?.cancel();
+    _stallTimer?.cancel();
+    // Long enough for a slow device-code round trip, short enough that nobody
+    // sits watching an empty square wondering.
+    _stallTimer = Timer(const Duration(seconds: 20), () {
+      if (mounted && _code == null && _error == null) {
+        setState(() => _stalled = true);
+      }
+    });
     _sub = widget.control.signIn().listen(
       (LoginStep step) {
         if (!mounted) return;
         switch (step) {
           case final LoginCode code:
-            setState(() => _code = code);
+            _stallTimer?.cancel();
+            setState(() {
+              _code = code;
+              _stalled = false;
+            });
           case LoginDone():
             setState(() => _done = true);
             // Long enough to read "Signed in", then back to the connection
@@ -326,6 +366,9 @@ class _NetbirdSignInScreenState extends State<NetbirdSignInScreen> {
                         const SizedBox(height: 40),
                         if (_error != null)
                           Text(_error!, style: MiraType.body.copyWith(fontSize: 24, color: MiraColors.danger))
+                        else if (_stalled)
+                          Text(_stalledReason,
+                              style: MiraType.body.copyWith(fontSize: 22, color: MiraColors.danger))
                         else if (code == null)
                           Text('Asking NetBird for a sign-in code…', style: MiraType.meta.copyWith(fontSize: 21))
                         else ...<Widget>[
@@ -388,13 +431,23 @@ class _NetbirdSignInScreenState extends State<NetbirdSignInScreen> {
                               ),
                             ),
                             const SizedBox(width: 14),
-                            Text(
+                            // Flexible, or a longer line overflows this column
+                            // rather than wrapping (seen at 1080p in tests).
+                            Flexible(
+                              child: Text(
                               _done
                                   ? 'Signed in. Bringing the tunnel up…'
                                   : _error != null
                                       ? 'Sign-in stopped'
-                                      : 'Waiting for you to sign in',
-                              style: MiraType.meta.copyWith(fontSize: 20, color: _done ? MiraColors.positive : MiraColors.textSecondary),
+                                      : _stalled
+                                          ? 'No answer from NetBird'
+                                          : 'Waiting for you to sign in',
+                              style: MiraType.meta.copyWith(
+                                  fontSize: 20,
+                                  color: _done
+                                      ? MiraColors.positive
+                                      : (_stalled ? MiraColors.danger : MiraColors.textSecondary)),
+                              ),
                             ),
                           ],
                         ),

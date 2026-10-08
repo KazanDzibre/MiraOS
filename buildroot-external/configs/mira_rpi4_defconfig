@@ -131,6 +131,23 @@ BR2_PACKAGE_GST1_PLUGINS_GOOD_PLUGIN_V4L2_PROBE=y
 # Patches we carry for upstream packages live in the external tree, next to
 # our own packages. Currently: teaching GStreamer's v4l2codecs about the Pi's
 # SAND column formats, without which the Pi's HEVC decoder is invisible.
+# Belgrade, and a locale that exists.
+#
+# Two separate problems the box had. It had no timezone at all, so everything
+# it showed - the clock in the top bar, log timestamps - was UTC, two hours
+# behind the living room in summer. And it had no locale data, so every boot
+# printed "The system has no configured locale" and xkbcommon fell back to C.
+#
+# Only this zone is compiled in: the full database is 5.5 MB of timezones for
+# a box that sits in one room. sr_RS.UTF-8 is the language of the house, with
+# en_US.UTF-8 alongside it because that is what most software falls back to
+# when a string is untranslated.
+BR2_TARGET_TZ_INFO=y
+BR2_TARGET_TZ_ZONELIST="europe"
+BR2_TARGET_LOCALTIME="Europe/Belgrade"
+BR2_GENERATE_LOCALE="sr_RS.UTF-8 en_US.UTF-8"
+BR2_SYSTEM_ENABLE_NLS=y
+
 BR2_GLOBAL_PATCH_DIR="$(BR2_EXTERNAL_MIRA_PATH)/patches"
 
 BR2_PACKAGE_GST1_PLUGINS_BAD=y

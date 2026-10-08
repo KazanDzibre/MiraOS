@@ -157,7 +157,50 @@ class GstreamerMiraPlayer implements MiraPlayer {
     }
   }
 
-  static String pipelineFor(Uri source, {String? format, bool? hardware, String? videoCodec}) {
+  /// The caps filter and decoder for an audio codec, or null when the box has
+  /// no verified path for it.
+  ///
+  /// Only AAC gets a parser, and that is not a style choice: **ac3parse in
+  /// front of avdec_eac3 breaks the pipeline** - the branch refuses to
+  /// negotiate and playback fails with "Internal data stream error", while
+  /// the bare decoder plays the same file perfectly. Tested on the box
+  /// against real files (2026-10-08): E-AC3 works only without the parser,
+  /// AC3 and DTS work either way, so none of them have one. AAC keeps
+  /// `aacparse` because the transcode path delivers ADTS inside MPEG-TS,
+  /// which does need framing - without it that pipeline hangs in PREROLLING
+  /// with no error at all.
+  ///
+  /// The list is what has been played, not what the box could in principle
+  /// decode. FLAC, Opus, ALAC and TrueHD are left to the server: the one FLAC
+  /// film here fails in *matroskademux* ("reading large blocks") before audio
+  /// is reached, the only Opus file is AV1 video that cannot direct play
+  /// anyway, and there are no ALAC titles. Each of those transcodes exactly
+  /// as it did before, which is the safe side to err on.
+  static ({String caps, String? parse, String dec})? _audioFor(String? audioCodec) {
+    switch (audioCodec?.toLowerCase()) {
+      case 'aac':
+        return (caps: 'audio/mpeg', parse: 'aacparse', dec: 'avdec_aac');
+      case 'ac3':
+        return (caps: 'audio/x-ac3', parse: null, dec: 'avdec_ac3');
+      case 'eac3':
+        return (caps: 'audio/x-eac3', parse: null, dec: 'avdec_eac3');
+      case 'dts':
+      case 'dca':
+        // DTS-HD decodes to its DTS core, which is what a passthrough would
+        // have given the television anyway.
+        return (caps: 'audio/x-dts', parse: null, dec: 'avdec_dca');
+      default:
+        return null;
+    }
+  }
+
+  static String pipelineFor(
+    Uri source, {
+    String? format,
+    bool? hardware,
+    String? videoCodec,
+    String? audioCodec,
+  }) {
     final String uri = source.toString().replaceAll('"', '%22');
     final bool useHardware = hardware ?? hasV4l2Decoder;
     final String chosenFormat =
@@ -174,7 +217,12 @@ class GstreamerMiraPlayer implements MiraPlayer {
     // what the DeviceProfile asks for when it cannot direct-play.
     final ({String parse, String dec})? decoder =
         _decoderFor(videoCodec ?? 'h264');
-    if (demux == null || decoder == null) {
+    // A transcode is always H.264 and AAC; a direct play is whatever the file
+    // holds. An unknown codec falls through to the software path below rather
+    // than building a pipeline that cannot link.
+    final ({String caps, String? parse, String dec})? audio =
+        _audioFor(audioCodec ?? 'aac');
+    if (demux == null || decoder == null || audio == null) {
       // No hardware decoder, or a container this pipeline does not know. The
       // software path plays it rather than failing outright.
       return 'uridecodebin uri="$uri" name="src" '
@@ -195,7 +243,8 @@ class GstreamerMiraPlayer implements MiraPlayer {
         'd. ! video/x-${hevc ? 'h265' : 'h264'} ! $queue ! ${decoder.parse} ! '
         '${decoder.dec} ! '
         '$videoCaps' 'appsink sync=true name="sink" '
-        'd. ! audio/mpeg ! $queue ! aacparse ! avdec_aac ! '
+        'd. ! ${audio.caps} ! $queue ! '
+        '${audio.parse == null ? '' : '${audio.parse} ! '}${audio.dec} ! '
         'audioconvert ! audioresample ! '
         'audio/x-raw,format=S16LE,channels=2,rate=48000 ! autoaudiosink';
   }
@@ -256,13 +305,14 @@ class GstreamerMiraPlayer implements MiraPlayer {
   }
 
   @override
-  Future<void> open(Uri source, {Duration startAt = Duration.zero, String? videoCodec}) async {
+  Future<void> open(Uri source,
+      {Duration startAt = Duration.zero, String? videoCodec, String? audioCodec}) async {
     await _release();
     _status.value = PlaybackStatus(state: PlaybackState.opening, position: startAt);
 
     final VideoPlayerController controller =
         FlutterpiVideoPlayerController.withGstreamerPipeline(
-            pipelineFor(source, videoCodec: videoCodec));
+            pipelineFor(source, videoCodec: videoCodec, audioCodec: audioCodec));
     _controller = controller;
     controller.addListener(_onValue);
 
