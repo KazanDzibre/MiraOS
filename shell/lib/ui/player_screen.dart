@@ -44,18 +44,24 @@ class PlayerScreen extends StatefulWidget {
   final MediaItem item;
   final bool fromStart;
 
-  /// How fast a held arrow travels after [held] of holding.
+  /// How fast a held arrow travels after [held] of holding, in seconds of
+  /// film per second of wall clock.
   ///
-  /// Starts at a minute of film per second and doubles every 0.8 s, capped at
-  /// fifteen minutes a second - which crosses a two-hour film in about eight
-  /// seconds of holding, and takes roughly three seconds to get there. The
-  /// ramp is deliberately not instant: the first second has to stay slow
-  /// enough to land on a scene you half-remember.
-  @visibleForTesting
+  /// The numbers are set against what *tapping* already achieves, which is
+  /// the bar this has to clear to feel like anything. A remote that sends
+  /// eight presses a second covers 80 s of film a second by tapping alone, so
+  /// a ramp starting at 60 was slower than tapping and the acceleration was
+  /// invisible - measured at 88 s against 80 s over eight presses, which is
+  /// exactly the "I have to click for each ten seconds" complaint.
+  ///
+  /// So it starts at 150 - comfortably past tapping from the second press -
+  /// and doubles every 0.6 s to a cap of 1200, which crosses a two-hour film
+  /// in about six seconds. A single tap is still ten seconds, so precision is
+  /// not lost.
   static double rateFor(Duration held) {
-    const double start = 60;
-    const double cap = 900;
-    final double rate = start * math.pow(2, held.inMilliseconds / 800).toDouble();
+    const double start = 150;
+    const double cap = 1200;
+    final double rate = start * math.pow(2, held.inMilliseconds / 600).toDouble();
     return rate > cap ? cap : rate;
   }
 
@@ -248,32 +254,55 @@ class _PlayerScreenState extends State<PlayerScreen> {
     if (_seekRate != 0 && mounted) setState(() => _seekRate = 0);
   }
 
+  /// How long a gap still counts as the same run of presses.
+  ///
+  /// Key repeats arrive every 30 ms or so; a remote that sends discrete
+  /// press/release pairs instead manages maybe eight a second. Both are one
+  /// gesture to the person holding the button, so both have to accelerate.
+  static const Duration _runGap = Duration(milliseconds: 450);
+
   void _nudge(int direction, {required bool repeat}) {
     final PlaybackStatus s = _player.status.value;
     if (s.duration <= Duration.zero) return;
 
     // Tapping is for "what did she say"; holding is for getting past the
     // credits, and the longer it is held the faster it goes.
+    //
+    // What counts as "holding" is deliberately *not* KeyRepeatEvent. The Rii
+    // air-mouse does not hold a key down at all - it sends a fresh press each
+    // time - so an implementation keyed on repeats never accelerated for it,
+    // and every press was another ten seconds (reported from the sofa,
+    // 2026-10-08). A run is therefore any sequence of presses in the same
+    // direction with less than [_runGap] between them, which is true of both
+    // kinds of remote.
     final DateTime now = miraNow();
+    final DateTime? last = _lastStep;
+    final bool continues = last != null &&
+        _holdDirection == direction &&
+        _holdStart != null &&
+        now.difference(last) <= _runGap;
+
     final Duration step;
-    if (!repeat || _holdStart == null || _holdDirection != direction) {
-      _holdStart = repeat ? now : null;
+    if (!continues) {
+      _holdStart = now;
       _holdDirection = direction;
       if (_seekRate != 0) _seekRate = 0;
       step = const Duration(seconds: 10);
     } else {
       final double rate = PlayerScreen.rateFor(now.difference(_holdStart!));
-      // Advance by however long this repeat actually took, so the speed on
-      // screen is the speed in the hand whatever rate the kernel repeats at -
-      // flutter-pi forwards evdev's, which is not ours to choose.
+      // Advance by however long this press actually took, so the speed on
+      // screen is the speed in the hand whatever rate the remote sends at -
+      // thirty repeats a second or eight presses, it covers the same ground.
       final int sinceMs =
-          now.difference(_lastStep ?? now).inMilliseconds.clamp(16, 120);
+          now.difference(last).inMilliseconds.clamp(16, _runGap.inMilliseconds);
       _seekRate = rate;
       step = Duration(milliseconds: (rate * sinceMs).round());
     }
     _lastStep = now;
     _holdTimer?.cancel();
-    _holdTimer = Timer(const Duration(milliseconds: 300), _endHold);
+    // Longer than the gap, or the run would end between presses on a remote
+    // that sends them discretely.
+    _holdTimer = Timer(_runGap * 2, _endHold);
 
     Duration target = (_pendingSeek ?? s.position) + step * direction;
     if (target < Duration.zero) target = Duration.zero;
@@ -401,14 +430,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }
 
   KeyEventResult _onScrubKey(KeyEvent event) {
-    if (event is KeyUpEvent) {
-      // Letting go ends the acceleration, so the next press starts slow again.
-      if (event.logicalKey == LogicalKeyboardKey.arrowLeft ||
-          event.logicalKey == LogicalKeyboardKey.arrowRight) {
-        _endHold();
-      }
-      return KeyEventResult.ignored;
-    }
+    // Key-up deliberately does *not* end the run. A remote that sends a fresh
+    // press and release for each step - which the Rii does - would otherwise
+    // reset the acceleration on its own release, every time, and holding the
+    // button would never be worth more than tapping it. The idle timer ends
+    // the run instead, which works for both kinds of remote.
+    if (event is KeyUpEvent) return KeyEventResult.ignored;
     final bool repeat = event is KeyRepeatEvent;
     if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
       _nudge(-1, repeat: repeat);

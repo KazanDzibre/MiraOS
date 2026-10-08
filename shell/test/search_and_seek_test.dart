@@ -202,15 +202,19 @@ void main() {
     // The ramp is pure arithmetic, so it is tested as arithmetic: driving a
     // hundred and fifty key repeats through a widget to measure a curve is
     // slow and proves less.
-    test('the step starts at a minute a second and doubles every 0.8 s', () {
-      expect(PlayerScreen.rateFor(Duration.zero), 60);
-      expect(PlayerScreen.rateFor(const Duration(milliseconds: 800)), closeTo(120, 0.001));
-      expect(PlayerScreen.rateFor(const Duration(milliseconds: 1600)), closeTo(240, 0.001));
+    test('it starts well past what tapping achieves, and doubles every 0.6 s', () {
+      // Tapping a remote that sends eight presses a second already covers
+      // 80 s of film a second, so the ramp has to start above that or the
+      // acceleration cannot be felt.
+      expect(PlayerScreen.rateFor(Duration.zero), 150);
+      expect(PlayerScreen.rateFor(const Duration(milliseconds: 600)), closeTo(300, 0.001));
+      expect(PlayerScreen.rateFor(const Duration(milliseconds: 1200)), closeTo(600, 0.001));
     });
 
     test('it caps, so a long hold stays steerable', () {
-      expect(PlayerScreen.rateFor(const Duration(seconds: 10)), 900);
-      expect(PlayerScreen.rateFor(const Duration(minutes: 5)), 900);
+      // 1200 s of film a second crosses a two-hour film in about six seconds.
+      expect(PlayerScreen.rateFor(const Duration(seconds: 10)), 1200);
+      expect(PlayerScreen.rateFor(const Duration(minutes: 5)), 1200);
     });
 
     test('it only ever grows', () {
@@ -220,6 +224,43 @@ void main() {
         expect(rate, greaterThanOrEqualTo(previous));
         previous = rate;
       }
+    });
+
+    // The Rii air-mouse sends a fresh press and release for each step rather
+    // than holding a key down, so an acceleration keyed on KeyRepeatEvent
+    // never fired for it and every press was another ten seconds.
+    testWidgets('a run of discrete presses accelerates, with no key repeats',
+        (WidgetTester tester) async {
+      _sizeToTv(tester);
+      DateTime now = DateTime(2026, 10, 8, 21, 0);
+      miraNow = () => now;
+
+      final MediaItem item =
+          (await tester.runAsync(() => const DemoLibrarySource().item('demo-ashfall')))!;
+      await tester.pumpWidget(_harness(PlayerScreen(
+        source: const DemoLibrarySource(),
+        item: item,
+        fromStart: true,
+        playerFactory: FakeMiraPlayer.new,
+      )));
+      for (int i = 0; i < 4; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      expect(FocusManager.instance.primaryFocus?.debugLabel, 'player:scrub');
+
+      // Press and release, eight times, 120 ms apart - no repeats at all.
+      for (int i = 0; i < 8; i++) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+        await tester.pump();
+        now = now.add(const Duration(milliseconds: 120));
+      }
+      final Duration reached = _readClock(tester);
+      // Eight unaccelerated taps would be 80 s. Anything well past that means
+      // the run was recognised.
+      expect(reached.inSeconds, greaterThan(120),
+          reason: 'discrete presses must accelerate like a held key');
+
+      await _settleTimers(tester);
     });
 
     testWidgets('a held arrow moves further than a tapped one',
