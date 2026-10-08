@@ -34,10 +34,9 @@ correct picture, decoding at a few percent of one core against 89% in
 software, with the server doing nothing at all.
 
 Signed-off-by: Mira <noreply@anthropic.com>
----
 --- a/src/plugins/gstreamer_video_player/frame.c
 +++ b/src/plugins/gstreamer_video_player/frame.c
-@@ -567,6 +567,59 @@
+@@ -566,6 +566,59 @@
  }
  #endif
  
@@ -97,7 +96,7 @@ Signed-off-by: Mira <noreply@anthropic.com>
  static uint32_t drm_format_from_gst_info(const GstVideoInfo *info);
  
  /*
-@@ -855,6 +908,11 @@
+@@ -812,6 +865,11 @@
          case GST_VIDEO_FORMAT_VUYA: return DRM_FORMAT_AYUV;
  #endif
          case GST_VIDEO_FORMAT_NV12: return DRM_FORMAT_NV12;
@@ -109,7 +108,7 @@ Signed-off-by: Mira <noreply@anthropic.com>
          case GST_VIDEO_FORMAT_NV21: return DRM_FORMAT_NV21;
          case GST_VIDEO_FORMAT_NV16: return DRM_FORMAT_NV16;
          case GST_VIDEO_FORMAT_NV61: return DRM_FORMAT_NV61;
-@@ -892,6 +950,11 @@
+@@ -849,6 +907,11 @@
              // case DRM_FORMAT_AYUV: return GST_VIDEO_FORMAT_VUYA;
  #endif
          case DRM_FORMAT_NV12: return GST_VIDEO_FORMAT_NV12;
@@ -121,7 +120,7 @@ Signed-off-by: Mira <noreply@anthropic.com>
          case DRM_FORMAT_NV21: return GST_VIDEO_FORMAT_NV21;
          case DRM_FORMAT_NV16: return GST_VIDEO_FORMAT_NV16;
          case DRM_FORMAT_NV61: return GST_VIDEO_FORMAT_NV61;
-@@ -1023,18 +1086,36 @@
+@@ -980,18 +1043,36 @@
          return NULL;
      }
  
@@ -161,7 +160,7 @@ Signed-off-by: Mira <noreply@anthropic.com>
      );
      return NULL;
  
-@@ -1060,6 +1141,42 @@
+@@ -1017,6 +1098,53 @@
          goto fail_free_frame;
      }
  
@@ -174,7 +173,18 @@ Signed-off-by: Mira <noreply@anthropic.com>
 +    if (is_sand) {
 +        uint32_t col_height = mira_sand_col_height(info, mira_meta);
 +        uint64_t modifier = mira_sand_modifier(info, mira_meta);
-+        uint32_t luma_height = (uint32_t) GST_VIDEO_INFO_HEIGHT(info);
++        /*
++         * The chroma plane starts where the *buffer's* luma rows end, which
++         * is not where the picture's do. A column holds luma then chroma in a
++         * 2:1 ratio, so the buffer's luma height is two thirds of the column
++         * height - 808 rows for a column of 1212, on a film that displays
++         * only 804. Using the display height instead put the chroma plane
++         * four rows early and drew a green band across the top of The
++         * Fellowship of the Ring (2026-10-09). Deriving it from the column
++         * height keeps buffer geometry and picture geometry apart, which is
++         * what they are.
++         */
++        uint32_t luma_height = col_height * 2 / 3;
 +
 +        for (int plane = 0; plane < n_planes; plane++) {
 +            planes[plane].pitch = 128;

@@ -1,0 +1,68 @@
+From: Mira <noreply@anthropic.com>
+Date: 2026-10-08
+Subject: [PATCH] v4l2codecs: never copy a column-tiled frame
+
+A film whose conformance window crops - 1920x808, say - sets need_crop,
+which makes the H265 decoder copy every output frame. The copy maps the
+buffer as though it were stored line by line and writes the result into a
+plain linear one.
+
+On the Raspberry Pi that is fatal twice over. The source is Broadcom's SAND
+column layout, so reading it linearly scrambles it; and the linear form of
+the 10-bit format, P030, is not importable by EGL at all, since v3d exposes
+P030 only with the SAND128 modifier. The frame therefore never reaches the
+screen: the film plays black with sound while the decoder runs flat out and
+the sink reports hundreds of dropped frames.
+
+Skipping the copy loses nothing. The driver is given the display size and
+returns a buffer of exactly that height - 1212 rows per column for 808 lines
+of luma plus 404 of chroma - so the hardware has already applied the crop.
+
+The test is the invariant the importer downstream uses: a linear frame's
+stride is at least its width, while a SAND frame reports the column height
+there, which is smaller.
+
+Signed-off-by: Mira <noreply@anthropic.com>
+---
+--- a/sys/v4l2codecs/gstv4l2codech265dec.c
++++ b/sys/v4l2codecs/gstv4l2codech265dec.c
+@@ -990,6 +990,39 @@
+     self->copy_frames = self->need_crop;
+   }
+ 
++  /*
++   * Mira: a column-tiled frame must never be copied.
++   *
++   * The copy maps the buffer as if it were stored line by line, which a SAND
++   * frame is not, and writes the result into a plain linear buffer. On the
++   * Raspberry Pi that is fatal twice over: the pixels come out scrambled, and
++   * the linear form of the 10-bit format (P030) is not importable by EGL at
++   * all - v3d exposes P030 only with the SAND128 modifier - so the frame
++   * cannot reach the screen and the film plays black while the decoder runs
++   * flat out. Seen on a 1920x808 film, where the conformance window sets
++   * need_crop and so triggered the copy (2026-10-08).
++   *
++   * Cropping is not lost by skipping it here: the driver is given the display
++   * size and hands back a buffer of exactly that height - 1212 rows per
++   * column for 808 lines of luma plus 404 of chroma - so the crop has already
++   * been applied by the hardware.
++   *
++   * The test is the same invariant the importer uses: a linear frame's stride
++   * is at least its width, while a SAND frame reports the column height
++   * there, which is smaller.
++   */
++  if (self->copy_frames
++      && GST_VIDEO_INFO_PLANE_STRIDE (&self->vinfo, 0) > 0
++      && GST_VIDEO_INFO_PLANE_STRIDE (&self->vinfo, 0) <
++      (gint) GST_VIDEO_INFO_WIDTH (&self->vinfo)) {
++    GST_WARNING_OBJECT (self,
++        "Column-tiled output (stride %d < width %d): not copying frames, "
++        "the driver has already cropped to the display size.",
++        GST_VIDEO_INFO_PLANE_STRIDE (&self->vinfo, 0),
++        GST_VIDEO_INFO_WIDTH (&self->vinfo));
++    self->copy_frames = FALSE;
++  }
++
+   return GST_FLOW_OK;
+ }
+ 

@@ -132,6 +132,27 @@ Why, in order of how much each matters:
   as one - which matches the driver exactly: 15 columns of 128 bytes by 1620
   rows is 3110400 bytes, its own `sizeimage`.
 
+  **Two traps found once odd-sized films were tried** (2026-10-08/09), both
+  of which a 1920x1040 or 1920x800 film never shows:
+
+  - **A cropped film played black.** *The Fellowship of the Ring* is
+    1920x804, so its conformance window crops, so the plugin set
+    `copy_frames` and copied every frame into a *linear* buffer. That is
+    fatal twice over: the copy reads a column layout as though it were rows,
+    and linear P030 is not importable by EGL at all. The film played black
+    with sound while the decoder ran flat out - 833 dropped frames, 138% of a
+    core - and the log said `not supported by EGL: P030 (modifier: 0x0, sand:
+    no)`. `patches/gst1-plugins-bad/0002-...` never copies a column-tiled
+    frame; the driver is given the display size and has already cropped.
+  - **Then it played with a green band across the top.** The chroma plane
+    begins where the *buffer's* luma rows end, not where the picture's do: a
+    column of 1212 rows holds 808 of luma and 404 of chroma, on a film that
+    displays 804. Taking the picture's height put chroma four rows early, and
+    misread chroma falls out green. The offset now comes from the column
+    height (two thirds of it), which keeps buffer geometry and picture
+    geometry apart - they are different things, and conflating them is what
+    caused this.
+
   **Still transcoded, and worth fixing next:** titles whose *audio* the box
   will not take. The profile direct-plays AAC only, so an HEVC film with
   E-AC3 or DTS is re-encoded whole - *Gladiator* is one. The box already has
